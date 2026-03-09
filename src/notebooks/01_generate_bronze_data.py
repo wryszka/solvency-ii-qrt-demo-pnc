@@ -1698,6 +1698,260 @@ print("All tables written successfully.")
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Apply Table and Column Descriptions (Unity Catalog Governance)
+# MAGIC Adds COMMENT metadata to every table and column for data discovery, lineage audit, and governance.
+
+# COMMAND ----------
+
+TABLE_METADATA = {
+    "counterparties": {
+        "table_comment": "Master counterparty register for all entities referenced in the investment portfolio, reinsurance programme, and banking relationships. Source system: synthetic (counterparty management). Grain: one row per counterparty. Used by: S.06.02 (issuer info), S.31.01 (reinsurer shares), counterparty default risk SCR.",
+        "columns": {
+            "counterparty_id":      "Unique internal identifier for the counterparty (e.g. CP00001). Primary key.",
+            "counterparty_name":    "Legal registered name of the counterparty entity.",
+            "lei":                  "Legal Entity Identifier (LEI) — 20-character ISO 17442 code. Synthetic but format-compliant.",
+            "country":              "Country of domicile — ISO 3166-1 alpha-2 code (e.g. DE, FR, NL).",
+            "sector_nace":          "NACE Rev.2 sector classification code of the counterparty's primary business activity.",
+            "credit_rating":        "External credit rating on Standard & Poor's scale (AAA to D, including NR for not rated).",
+            "credit_quality_step":  "EIOPA Credit Quality Step (CQS) mapped from the external rating. Range 0 (AAA) to 6 (CCC and below).",
+            "counterparty_type":    "Role classification: issuer (bond/equity issuer), reinsurer, bank, or broker.",
+            "is_regulated":         "Whether the counterparty is regulated by a financial supervisory authority (true/false).",
+            "group_name":           "Name of the parent group, if the counterparty belongs to a group. Null if standalone.",
+            "group_lei":            "LEI of the parent group entity. Null if standalone or group LEI not available.",
+        }
+    },
+    "assets": {
+        "table_comment": "Investment register containing all financial assets held by the undertaking at the reporting date. Source system: synthetic (investment management / custodian). Grain: one row per individual asset holding. Primary source for QRT S.06.02 (List of Assets). Also feeds S.02.01 balance sheet (investment assets) and market risk SCR inputs.",
+        "columns": {
+            "asset_id":             "Unique internal asset identifier (e.g. A000001). Primary key.",
+            "asset_name":           "Descriptive name of the asset holding (e.g. 'Federal Republic of Germany 1.25% 2032').",
+            "issuer_name":          "Legal name of the issuer or counterparty. References counterparties.counterparty_name for corporates.",
+            "issuer_lei":           "LEI of the issuer. References counterparties.lei for corporates; synthetic sovereign LEIs for government bonds.",
+            "issuer_country":       "Country of domicile of the issuer — ISO 3166-1 alpha-2.",
+            "issuer_sector":        "NACE Rev.2 sector code of the issuer. O84 for government/sovereign.",
+            "cic_code":             "EIOPA Complementary Identification Code (4 characters). First 2 = country (or XL for supranational), last 2 = asset category per EIOPA CIC table.",
+            "currency":             "ISO 4217 currency code of the asset. All EUR in this demo.",
+            "acquisition_date":     "Date the asset was acquired/purchased.",
+            "maturity_date":        "Contractual maturity date for fixed-income instruments. Null for equity, property, and perpetual holdings.",
+            "par_value":            "Face value / nominal / par amount in EUR. For equity = number of shares * nominal value.",
+            "acquisition_cost":     "Total acquisition cost in EUR (purchase price including transaction costs).",
+            "market_value_eur":     "Fair market value in EUR at the valuation date. Mark-to-market for listed, mark-to-model for unlisted.",
+            "accrued_interest":     "Accrued but not yet received interest in EUR. Zero for equity and property.",
+            "coupon_rate":          "Annual coupon rate as a decimal (e.g. 0.0125 for 1.25%). Zero for zero-coupon bonds, equity, property.",
+            "credit_rating":        "External credit rating of the asset/issuer on S&P scale.",
+            "credit_quality_step":  "EIOPA Credit Quality Step (0-6) mapped from the external credit rating.",
+            "portfolio_type":       "Solvency II portfolio allocation: Life, Non-life, Ring-fenced, or Other.",
+            "custodian_name":       "Name of the custodian bank holding the asset.",
+            "valuation_date":       "Date at which the market value was determined (= reporting reference date).",
+            "is_listed":            "Whether the asset is listed on a regulated exchange (true/false). Affects equity risk sub-module.",
+            "infrastructure_flag":  "Whether the asset qualifies as an infrastructure investment under Solvency II (true/false). Affects equity risk charge.",
+            "modified_duration":    "Macaulay modified duration in years. Measures interest rate sensitivity. Null for equity/property.",
+            "asset_class":          "Derived asset class category: government_bonds, corporate_bonds, equity, ciu, property, cash, other.",
+            "reporting_period":     "Reporting period in YYYY-QN format (e.g. 2025-Q4).",
+        }
+    },
+    "policies": {
+        "table_comment": "Policy administration register containing all P&C insurance policies across underwriting years 2020-2025. Source system: synthetic (policy admin). Grain: one row per policy. Feeds premium calculations for S.05.01 and claims linkage. LoB classification follows EIOPA Annex I to Delegated Regulation.",
+        "columns": {
+            "policy_id":            "Unique policy identifier (e.g. POL0000001). Primary key. Referenced by premiums_transactions and claims_transactions.",
+            "line_of_business":     "EIOPA Solvency II line of business name per Annex I (e.g. 'Motor vehicle liability insurance').",
+            "lob_code":             "Numeric EIOPA LoB code: 1-12 for non-life direct business. Maps to S.05.01 column references.",
+            "inception_date":       "Policy effective start date.",
+            "expiry_date":          "Policy effective end date.",
+            "currency":             "Policy denomination currency — ISO 4217. All EUR.",
+            "country_risk":         "Country where the risk is situated — ISO 3166-1 alpha-2. Relevant for geographical diversification.",
+            "status":               "Current policy status: active, lapsed, or cancelled.",
+            "sum_insured_eur":      "Total sum insured / policy limit in EUR.",
+            "annual_premium_eur":   "Annualised gross written premium in EUR for this policy.",
+            "premium_frequency":    "Payment frequency: annual, semi_annual, quarterly, or monthly.",
+            "channel":              "Distribution channel: broker, direct, or agent.",
+            "underwriting_year":    "Year the policy was originally underwritten (inception year). Used for underwriting year analysis.",
+            "reporting_period":     "Reporting period in YYYY-QN format.",
+        }
+    },
+    "premiums_transactions": {
+        "table_comment": "Premium accounting transactions at policy-transaction level. Covers 8 quarters (2024-Q1 to 2025-Q4). Source system: synthetic (general ledger / sub-ledger). Grain: one row per policy per quarter per transaction type. Aggregates to S.05.01 premium rows (R0110-R0300). Transaction types: written (policy inception/renewal), earned (pro-rata exposure), ceded_written, ceded_earned.",
+        "columns": {
+            "transaction_id":       "Unique transaction identifier (e.g. PT0000001). Primary key.",
+            "policy_id":            "Foreign key to policies.policy_id.",
+            "transaction_date":     "Accounting date of the premium transaction.",
+            "transaction_type":     "Type of premium transaction: written, earned, ceded_written, or ceded_earned.",
+            "gross_amount_eur":     "Gross premium amount in EUR (before reinsurance).",
+            "reinsurance_amount_eur": "Reinsurance ceded premium amount in EUR. Equals gross for ceded transaction types.",
+            "net_amount_eur":       "Net premium amount in EUR (gross minus reinsurance). Zero for ceded transaction types.",
+            "reporting_period":     "Reporting quarter in YYYY-QN format. Determines which QRT period the transaction falls into.",
+            "accounting_year":      "Calendar year of the accounting entry.",
+            "underwriting_year":    "Original underwriting year of the policy generating this premium.",
+        }
+    },
+    "claims_transactions": {
+        "table_comment": "Claims accounting transactions with development history. Covers accident years 2020-2025 with development years 0-5. Source system: synthetic (claims management). Grain: one row per claim per development event. Includes paid, reserve_change, incurred, and recovery transaction types. Supports S.05.01 claims rows (R0310-R0400), S.19.01 triangles, and technical provisions derivation.",
+        "columns": {
+            "claim_id":                 "Unique claim identifier (e.g. CLM0000001). Multiple rows per claim (one per development event).",
+            "policy_id":                "Foreign key to policies.policy_id. Links claim to the originating policy.",
+            "loss_date":                "Date of the loss/accident event.",
+            "notification_date":        "Date the claim was reported/notified to the insurer.",
+            "transaction_date":         "Accounting date of this claims transaction entry.",
+            "transaction_type":         "Type: incurred (initial estimate at notification), paid (actual payment), reserve_change (case reserve adjustment), recovery (salvage/subrogation).",
+            "claim_status":             "Status at the time of this transaction: open, closed, or reopened.",
+            "gross_amount_eur":         "Gross claim amount in EUR for this transaction.",
+            "reinsurance_recovery_eur": "Reinsurance recovery amount in EUR.",
+            "net_amount_eur":           "Net claim amount in EUR (gross minus reinsurance recovery).",
+            "large_loss_flag":          "True if the claim's ultimate gross incurred exceeds EUR 500,000. Relevant for XL reinsurance and large loss analysis.",
+            "cause_of_loss":            "Cause/peril category (e.g. collision, theft, fire, flood, bodily_injury). Varies by line of business.",
+            "reporting_period":         "Reporting quarter in YYYY-QN format of this transaction.",
+            "accident_year":            "Year of the loss event. Used for triangle development and accident-year analysis.",
+            "development_year":         "Number of years since the accident year (0 = same year as loss). Used for claims triangle construction.",
+        }
+    },
+    "claims_triangles": {
+        "table_comment": "Pre-aggregated claims development triangles by LoB, accident year, and development year. Source: derived from claims_transactions. Grain: one row per LoB × accident year × development year. Designed for S.19.01 (Non-life Claims Information) and actuarial reserving analysis.",
+        "columns": {
+            "lob_code":                 "EIOPA line of business numeric code.",
+            "line_of_business":         "EIOPA line of business name.",
+            "accident_year":            "Accident/loss year.",
+            "development_year":         "Development year (0 = same year as accident).",
+            "cumulative_paid_gross":    "Cumulative gross paid claims in EUR from accident year to this development year.",
+            "cumulative_paid_net":      "Cumulative net paid claims in EUR (after reinsurance recovery).",
+            "cumulative_incurred_gross": "Cumulative gross incurred claims in EUR (paid + outstanding reserves).",
+            "cumulative_incurred_net":  "Cumulative net incurred claims in EUR.",
+            "case_reserves_gross":      "Outstanding case reserves (gross) at this development year in EUR.",
+            "case_reserves_net":        "Outstanding case reserves (net) at this development year in EUR.",
+            "claim_count_open":         "Number of open claims at this development point.",
+            "claim_count_closed":       "Number of closed claims at this development point.",
+            "reporting_period":         "Reporting period in YYYY-QN format.",
+        }
+    },
+    "expenses": {
+        "table_comment": "Expense allocation records by line of business and expense category. Source system: synthetic (general ledger / cost allocation). Grain: one row per expense record (allocated to LoB and category). Aggregates to S.05.01 expense rows (R0550-R1300). Total expense ratio targets ~30% of GWP.",
+        "columns": {
+            "expense_id":           "Unique expense record identifier (e.g. EXP000001). Primary key.",
+            "line_of_business":     "EIOPA line of business to which this expense is allocated.",
+            "lob_code":             "Numeric EIOPA LoB code.",
+            "expense_category":     "Expense type: acquisition, administrative, claims_management, overhead, investment_management, or other.",
+            "gross_amount_eur":     "Expense amount in EUR.",
+            "allocation_basis":     "Method used to allocate expense to LoB: premium (pro-rata GWP), claims (pro-rata claims), headcount, or direct.",
+            "cost_centre":          "Organisational cost centre responsible (e.g. CC100-Underwriting, CC700-Actuarial).",
+            "reporting_period":     "Reporting period in YYYY-QN format.",
+            "accounting_year":      "Calendar year of the expense entry.",
+        }
+    },
+    "reinsurance_contracts": {
+        "table_comment": "Reinsurance programme structure — all treaty reinsurance contracts in force. Source system: synthetic (reinsurance management). Grain: one row per reinsurance contract. Covers quota share, excess of loss, surplus, and stop loss treaties. Supports S.30.03 (Outgoing Reinsurance Programme), S.31.01 (Share of Reinsurers), and cession calculations for all QRTs.",
+        "columns": {
+            "contract_id":          "Unique reinsurance contract identifier (e.g. RI0001). Primary key.",
+            "contract_name":        "Descriptive contract name (e.g. 'QS Motor vehicle liability insurance 2025').",
+            "reinsurer_name":       "Legal name of the reinsurance counterparty.",
+            "reinsurer_lei":        "LEI of the reinsurer — 20-character ISO 17442 format.",
+            "reinsurer_country":    "Country of domicile of the reinsurer — ISO 3166-1 alpha-2.",
+            "reinsurer_credit_rating": "External credit rating of the reinsurer on S&P scale.",
+            "contract_type":        "Treaty type: quota_share, excess_of_loss, surplus, or stop_loss.",
+            "lob_codes_covered":    "Comma-separated list of EIOPA LoB codes covered by this contract.",
+            "inception_date":       "Contract effective start date.",
+            "expiry_date":          "Contract effective end date.",
+            "cession_rate":         "Proportional cession rate as decimal (e.g. 0.20 for 20%). Null for non-proportional treaties.",
+            "retention_eur":        "Retention amount in EUR. For XL = attachment point, for surplus = retained line. Null for quota share.",
+            "limit_eur":            "Maximum cover limit in EUR. For XL = layer limit, for stop loss = aggregate limit. Null for quota share.",
+            "priority_eur":         "Priority / attachment point in EUR for non-proportional treaties. Null for proportional.",
+            "premium_eur":          "Reinsurance premium payable in EUR for this contract.",
+            "commission_rate":      "Reinsurance commission rate as decimal (e.g. 0.30 for 30% ceding commission).",
+            "reporting_period":     "Reporting period in YYYY-QN format.",
+        }
+    },
+    "technical_provisions": {
+        "table_comment": "Solvency II technical provisions by line of business and provision type. Source: derived from claims reserves and actuarial best estimates. Grain: one row per LoB × provision type. Feeds S.17.01 (Non-Life Technical Provisions), S.02.01 balance sheet (liabilities side), and SCR calculations.",
+        "columns": {
+            "lob_code":                 "EIOPA line of business code. 0 = all lines (used for transitional measures).",
+            "line_of_business":         "EIOPA line of business name.",
+            "provision_type":           "Type of provision: best_estimate_claims (discounted future claims payments), best_estimate_premium (unearned premium reserve net of expected costs), risk_margin (cost-of-capital risk margin per Art. 37), transitional (transitional measures on TP per Art. 308d).",
+            "gross_amount_eur":         "Gross technical provision amount in EUR.",
+            "reinsurance_recoverable_eur": "Reinsurance recoverables amount in EUR. Deducted from gross to derive net TP.",
+            "net_amount_eur":           "Net technical provision amount in EUR (gross minus RI recoverables).",
+            "reporting_period":         "Reporting period in YYYY-QN format.",
+        }
+    },
+    "own_funds_components": {
+        "table_comment": "Solvency II own funds breakdown by tier and component. Source: synthetic (balance sheet / capital management). Grain: one row per own funds component. Feeds S.23.01 (Own Funds) and solvency ratio calculation. Target total ~EUR 2B providing ~170% solvency ratio.",
+        "columns": {
+            "component_id":     "Unique component identifier (e.g. OF001). Primary key.",
+            "component_name":   "Descriptive name of the own funds component (e.g. 'Ordinary share capital', 'Reconciliation reserve').",
+            "tier":             "Solvency II tier classification: tier1_unrestricted, tier1_restricted, tier2, or tier3. Determines eligibility to cover SCR/MCR.",
+            "amount_eur":       "Amount in EUR. Negative for deductions (e.g. participations deduction, foreseeable dividends).",
+            "classification":   "basic (balance sheet derived) or ancillary (off-balance sheet, requires supervisory approval).",
+            "reporting_period":  "Reporting period in YYYY-QN format.",
+        }
+    },
+    "risk_factors": {
+        "table_comment": "SCR Standard Formula sub-module capital charges. Source: synthetic (actuarial / risk management). Grain: one row per risk module × sub-module. Feeds S.25.01 (SCR Standard Formula) and S.26/S.27 detailed risk modules. BSCR target ~EUR 1.35B, final SCR ~EUR 1.15B.",
+        "columns": {
+            "risk_module":                      "Top-level SCR risk module: market, counterparty_default, non_life, health, operational, or intangible.",
+            "risk_sub_module":                  "Sub-module within the risk module (e.g. interest_rate, equity, premium_reserve). 'total' for modules without sub-modules (operational, intangible).",
+            "gross_capital_charge_eur":          "Gross (pre-diversification within module) capital charge in EUR.",
+            "diversification_within_module_eur": "Intra-module diversification benefit in EUR. Negative value representing capital relief.",
+            "net_capital_charge_eur":            "Net capital charge after intra-module diversification in EUR. Used in inter-module BSCR aggregation.",
+            "reporting_period":                  "Reporting period in YYYY-QN format.",
+        }
+    },
+    "scr_parameters": {
+        "table_comment": "SCR Standard Formula calibration parameters including inter-module correlation matrix, loss-absorbing capacity adjustments, operational risk factors, non-life premium/reserve sigma factors, and equity/property stress parameters. Source: EIOPA calibration (Delegated Regulation) plus entity-specific inputs. Grain: one row per parameter.",
+        "columns": {
+            "parameter_name":       "Parameter identifier. Naming convention: corr_<mod1>_<mod2> for correlations, lac_* for loss-absorbing capacity, op_risk_* for operational risk, nl_* for non-life, equity_*/property_*/currency_* for market risk shocks.",
+            "parameter_value":      "Parameter value as string (cast to numeric for use). Correlations are 0-1, shock factors are decimals, monetary amounts are in EUR.",
+            "parameter_category":   "Category: correlation (inter-module), adjustment (LAC, EPIFP), threshold (op risk caps), calibration (risk factor shocks), or sigma (volatility parameters).",
+            "description":          "Human-readable description of the parameter and its regulatory source.",
+            "reporting_period":     "Reporting period in YYYY-QN format.",
+        }
+    },
+    "balance_sheet_items": {
+        "table_comment": "Solvency II balance sheet items in the S.02.01 reporting structure. Source: derived from assets, technical_provisions, and own_funds_components tables. Grain: one row per balance sheet line item. Asset totals reconcile to the assets table, liabilities include TP and other liabilities, excess of assets over liabilities equals own funds.",
+        "columns": {
+            "item_id":          "Unique balance sheet line item identifier (e.g. BS001). Primary key.",
+            "item_name":        "Descriptive name matching EIOPA S.02.01 row labels (e.g. 'Government bonds', 'Best estimate - non-life').",
+            "s0201_row_id":     "EIOPA S.02.01 template row reference (e.g. R0140 for Government bonds, R0510 for Best estimate non-life).",
+            "category":         "Balance sheet section: assets, liabilities, or own_funds.",
+            "amount_eur":       "Amount in EUR. Assets and own funds are positive, liabilities are positive on the liabilities side.",
+            "reporting_period":  "Reporting period in YYYY-QN format.",
+        }
+    },
+}
+
+# COMMAND ----------
+
+def apply_table_comments(table_name, metadata):
+    """Apply COMMENT ON TABLE and ALTER COLUMN COMMENT for governance metadata."""
+    full_name = f"{catalog}.{schema}.{table_name}"
+
+    # Table-level comment
+    tbl_comment = metadata["table_comment"].replace("'", "''")
+    spark.sql(f"COMMENT ON TABLE {full_name} IS '{tbl_comment}'")
+
+    # Column-level comments
+    existing_cols = {f.name for f in spark.table(full_name).schema.fields}
+    applied = 0
+    skipped = []
+    for col_name, col_comment in metadata["columns"].items():
+        if col_name in existing_cols:
+            safe_comment = col_comment.replace("'", "''")
+            spark.sql(f"ALTER TABLE {full_name} ALTER COLUMN `{col_name}` COMMENT '{safe_comment}'")
+            applied += 1
+        else:
+            skipped.append(col_name)
+
+    status = f"  {table_name}: table comment + {applied} column comments"
+    if skipped:
+        status += f" (skipped {len(skipped)} not found: {skipped})"
+    print(status)
+
+# COMMAND ----------
+
+print("Applying table and column descriptions for Unity Catalog governance...")
+for table_name, metadata in TABLE_METADATA.items():
+    apply_table_comments(table_name, metadata)
+print("All governance metadata applied.")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Summary Statistics
 
 # COMMAND ----------
