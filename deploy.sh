@@ -250,7 +250,11 @@ success "Bundle deployed."
 
 info "Running: databricks bundle run qrt_pipeline"
 databricks bundle run qrt_pipeline --profile "$PROFILE"
-success "Pipeline job completed."
+success "Core pipeline job completed."
+
+info "Running: databricks bundle run sf_pipeline"
+databricks bundle run sf_pipeline --profile "$PROFILE"
+success "Standard Formula pipeline job completed."
 
 # ==============================================================================
 # Step 5: Build frontend
