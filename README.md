@@ -41,7 +41,7 @@ databricks bundle run qrt_pipeline -t dev
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `catalog_name` | `lr_serverless_aws_us_catalog` | Unity Catalog |
+| `catalog_name` | `lr_serverless_aws_us_catalog` | Unity Catalog (configurable — change to any catalog you have access to, e.g. `solvency2demo`) |
 | `reporting_date` | `2025-12-31` | Solvency II reporting date |
 | `entity_lei` | `5493001KJTIIGC8Y1R12` | Synthetic undertaking LEI |
 | `entity_name` | `Europa Re Insurance SE` | Synthetic undertaking name |

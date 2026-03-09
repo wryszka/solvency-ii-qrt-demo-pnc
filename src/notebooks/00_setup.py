@@ -12,6 +12,16 @@ catalog = dbutils.widgets.get("catalog_name")
 
 # COMMAND ----------
 
+# Try to create the catalog (works if user has CREATE CATALOG permission).
+# If not, assume the catalog already exists (e.g. workspace default catalog).
+try:
+    spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog} COMMENT 'Solvency II QRT reporting demo — synthetic P&C insurer data, EIOPA-aligned reports, and audit lineage.'")
+    print(f"Catalog '{catalog}' created or already exists.")
+except Exception as e:
+    if "PERMISSION_DENIED" in str(e) or "does not exist" in str(e):
+        print(f"Cannot create catalog '{catalog}' (permission denied) — assuming it already exists.")
+    else:
+        raise
 spark.sql(f"USE CATALOG {catalog}")
 
 # COMMAND ----------
