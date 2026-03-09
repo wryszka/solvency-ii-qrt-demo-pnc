@@ -50,6 +50,10 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
 
 # COMMAND ----------
 
+# MAGIC %run ./helpers/lineage_logger
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Imports and seeded random state
 
@@ -64,6 +68,14 @@ import itertools
 
 rng = np.random.RandomState(random_seed)
 rpt_date = datetime.strptime(reporting_date, "%Y-%m-%d").date()
+
+# Initialise lineage logger
+pipeline_params = {
+    "catalog_name": catalog, "reporting_date": reporting_date,
+    "entity_name": entity_name, "random_seed": random_seed, "scale_factor": scale_factor
+}
+lineage = LineageLogger(spark, catalog, reporting_period)
+lineage.start_step("01_generate_bronze_data")
 
 # COMMAND ----------
 
@@ -237,8 +249,10 @@ counterparties = []
 countries_pool = SOVEREIGN_COUNTRIES + ["LU", "IE", "FI", "SE", "DK", "PT", "CH"]
 nace_codes = list(CORPORATE_SECTORS_NACE.keys())
 cp_types = ["issuer", "issuer", "issuer", "issuer", "reinsurer", "bank", "broker"]
+# 19 weights matching SP_RATINGS: AAA(1), AA+/AA/AA-(3), A+/A/A-(3), BBB+/BBB/BBB-(3),
+# BB+/BB/BB-(3), B+/B/B-(3), CCC+/CCC(2), NR(1)
 rating_weights = ([0.05] + [0.07]*3 + [0.10]*3 + [0.09]*3 +
-                  [0.04]*3 + [0.02]*3 + [0.01]*3 + [0.01])
+                  [0.04]*3 + [0.02]*3 + [0.01]*2 + [0.01])
 
 for i in range(N_COUNTERPARTIES):
     first = _corp_first[rng.randint(len(_corp_first))]
@@ -1667,32 +1681,64 @@ print(f"Excess (own funds): EUR {excess/1e6:.0f}M")
 
 # COMMAND ----------
 
-def write_delta(df_pandas, table_name):
-    """Write a pandas DataFrame as a Delta table using CREATE OR REPLACE / overwrite."""
+def write_delta(df_pandas, table_name, description=""):
+    """Write a pandas DataFrame as a Delta table and log lineage."""
     sdf = spark.createDataFrame(df_pandas)
     full_name = f"{catalog}.{schema}.{table_name}"
     sdf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(full_name)
     count = spark.table(full_name).count()
+    columns_out = list(df_pandas.columns)
     print(f"  {full_name}: {count} rows")
+
+    # Log lineage for this table
+    lineage.log_lineage(
+        step_name="01_generate_bronze_data",
+        step_sequence=1,
+        source_tables=[],
+        target_table=full_name,
+        transformation_type="generation",
+        transformation_desc=description or f"Synthetic data generation for {table_name}",
+        row_count_in=None,
+        row_count_out=count,
+        columns_out=columns_out,
+        parameters=pipeline_params,
+        status="success",
+    )
     return count
 
 # COMMAND ----------
 
+BRONZE_TABLE_DESCRIPTIONS = {
+    "counterparties":        "Generate 500 synthetic counterparties (issuers, reinsurers, banks) with LEIs, ratings, NACE sectors. Referenced by assets and reinsurance_contracts.",
+    "assets":                "Generate ~5000 investment holdings (govt bonds 60%, corp bonds 20%, equity 10%, CIU 5%, property/cash 5%). Log-normal market values totalling EUR 6.5B. Realistic CIC codes, durations, credit ratings.",
+    "policies":              "Generate ~20000 P&C policies across 7 non-life LoB (motor, property, liability, medical, income protection, misc). Pareto-distributed premiums totalling EUR 2B GWP. UW years 2020-2025.",
+    "premiums_transactions": "Generate premium transactions for 8 quarters (2024-Q1 to 2025-Q4). Four types per policy-quarter: written, earned (pro-rata exposure), ceded_written, ceded_earned. LoB-specific cession rates 15-30%.",
+    "claims_transactions":   "Generate claims with Poisson frequency and log-normal severity. Accident years 2020-2025, development years 0-5. LoB-specific tail lengths. 2% large losses (>EUR 500K). Paid/reserve_change/incurred types.",
+    "claims_triangles":      "Pre-aggregate claims_transactions into cumulative development triangles by LoB × accident year × development year. Includes paid, incurred, case reserves, and claim counts.",
+    "expenses":              "Generate ~2000 expense records across 6 categories (acquisition 12%, admin 10%, claims mgmt 5%, overhead 3%, investment mgmt 0.5%, other 0.5%). Allocated by LoB using premium/claims/headcount bases.",
+    "reinsurance_contracts": "Generate ~50 reinsurance contracts: quota share per LoB, XL per LoB, surplus for property/motor, stop loss whole-account, and layered XL. Realistic programme structure with major reinsurers.",
+    "technical_provisions":  "Derive Solvency II technical provisions per LoB: best estimate claims (from case reserves + IBNR factor), best estimate premium (UPR net of expected costs), risk margin (8-12% of BE claims), transitional measures.",
+    "own_funds_components":  "Generate ~17 own funds components: Tier 1 unrestricted (80%, incl. share capital, reconciliation reserve, retained earnings), Tier 1 restricted, Tier 2 (subordinated debt), Tier 3 (DTA), ancillary, deductions. Total ~EUR 2B.",
+    "risk_factors":          "Generate SCR Standard Formula sub-module capital charges: market (6 sub-modules), counterparty default (type 1/2), non-life (premium-reserve, cat, lapse), health (3 sub-modules), operational, intangible. BSCR ~EUR 1.35B.",
+    "scr_parameters":        "Generate SCR calibration parameters: 10 inter-module correlations, LAC TP/DT amounts, operational risk factors, non-life premium/reserve sigma per LoB, equity/property/currency shocks, symmetric adjustment.",
+    "balance_sheet_items":   "Derive full S.02.01 balance sheet: assets side reconciled to investment register, liabilities include TP + other liabilities, excess = own funds. ~55 line items matching EIOPA row references.",
+}
+
 print("Writing bronze tables to Unity Catalog...")
 counts = {}
-counts["counterparties"]        = write_delta(df_counterparties, "counterparties")
-counts["assets"]                = write_delta(df_assets, "assets")
-counts["policies"]              = write_delta(df_policies, "policies")
-counts["premiums_transactions"] = write_delta(df_premiums, "premiums_transactions")
-counts["claims_transactions"]   = write_delta(df_claims, "claims_transactions")
-counts["claims_triangles"]      = write_delta(df_triangles, "claims_triangles")
-counts["expenses"]              = write_delta(df_expenses, "expenses")
-counts["reinsurance_contracts"] = write_delta(df_reinsurance, "reinsurance_contracts")
-counts["technical_provisions"]  = write_delta(df_tp, "technical_provisions")
-counts["own_funds_components"]  = write_delta(df_own_funds, "own_funds_components")
-counts["risk_factors"]          = write_delta(df_risk_factors, "risk_factors")
-counts["scr_parameters"]        = write_delta(df_scr_params, "scr_parameters")
-counts["balance_sheet_items"]   = write_delta(df_balance_sheet, "balance_sheet_items")
+counts["counterparties"]        = write_delta(df_counterparties, "counterparties",        BRONZE_TABLE_DESCRIPTIONS["counterparties"])
+counts["assets"]                = write_delta(df_assets, "assets",                        BRONZE_TABLE_DESCRIPTIONS["assets"])
+counts["policies"]              = write_delta(df_policies, "policies",                    BRONZE_TABLE_DESCRIPTIONS["policies"])
+counts["premiums_transactions"] = write_delta(df_premiums, "premiums_transactions",       BRONZE_TABLE_DESCRIPTIONS["premiums_transactions"])
+counts["claims_transactions"]   = write_delta(df_claims, "claims_transactions",           BRONZE_TABLE_DESCRIPTIONS["claims_transactions"])
+counts["claims_triangles"]      = write_delta(df_triangles, "claims_triangles",           BRONZE_TABLE_DESCRIPTIONS["claims_triangles"])
+counts["expenses"]              = write_delta(df_expenses, "expenses",                    BRONZE_TABLE_DESCRIPTIONS["expenses"])
+counts["reinsurance_contracts"] = write_delta(df_reinsurance, "reinsurance_contracts",    BRONZE_TABLE_DESCRIPTIONS["reinsurance_contracts"])
+counts["technical_provisions"]  = write_delta(df_tp, "technical_provisions",              BRONZE_TABLE_DESCRIPTIONS["technical_provisions"])
+counts["own_funds_components"]  = write_delta(df_own_funds, "own_funds_components",       BRONZE_TABLE_DESCRIPTIONS["own_funds_components"])
+counts["risk_factors"]          = write_delta(df_risk_factors, "risk_factors",            BRONZE_TABLE_DESCRIPTIONS["risk_factors"])
+counts["scr_parameters"]        = write_delta(df_scr_params, "scr_parameters",           BRONZE_TABLE_DESCRIPTIONS["scr_parameters"])
+counts["balance_sheet_items"]   = write_delta(df_balance_sheet, "balance_sheet_items",    BRONZE_TABLE_DESCRIPTIONS["balance_sheet_items"])
 print("All tables written successfully.")
 
 # COMMAND ----------
