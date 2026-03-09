@@ -1,0 +1,25 @@
+lob_code,lob_name,lob_type,s0501_column
+1,Medical expense insurance,non_life_direct,C0010
+2,Income protection insurance,non_life_direct,C0020
+3,Workers compensation insurance,non_life_direct,C0030
+4,Motor vehicle liability insurance,non_life_direct,C0040
+5,Other motor insurance,non_life_direct,C0050
+6,Marine aviation and transport insurance,non_life_direct,C0060
+7,Fire and other damage to property insurance,non_life_direct,C0070
+8,General liability insurance,non_life_direct,C0080
+9,Credit and suretyship insurance,non_life_direct,C0090
+10,Legal expenses insurance,non_life_direct,C0100
+11,Assistance,non_life_direct,C0110
+12,Miscellaneous financial loss,non_life_direct,C0120
+13,Medical expense reinsurance,prop_ri_accepted,C0130
+14,Income protection reinsurance,prop_ri_accepted,C0140
+15,Workers compensation reinsurance,prop_ri_accepted,C0150
+16,Motor vehicle liability reinsurance,prop_ri_accepted,C0160
+17,Other motor reinsurance,prop_ri_accepted,C0170
+18,Marine aviation and transport reinsurance,prop_ri_accepted,C0180
+19,Property reinsurance,prop_ri_accepted,C0190
+20,General liability reinsurance,prop_ri_accepted,C0200
+21,Credit and suretyship reinsurance,prop_ri_accepted,C0210
+22,Legal expenses reinsurance,prop_ri_accepted,C0220
+23,Assistance reinsurance,prop_ri_accepted,C0230
+24,Miscellaneous financial loss reinsurance,prop_ri_accepted,C0240

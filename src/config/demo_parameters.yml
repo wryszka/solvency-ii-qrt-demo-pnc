@@ -1,0 +1,61 @@
+# Solvency II QRT Demo Parameters
+# Reporting entity
+entity:
+  name: "Europa Re Insurance SE"
+  lei: "5493001KJTIIGC8Y1R12"
+  country: "DE"
+  currency: "EUR"
+
+# Reporting period
+reporting:
+  reference_date: "2025-12-31"
+  period: "2025-Q4"
+  annual: true
+
+# Data volumes
+volumes:
+  assets: 5000
+  policies: 20000
+  premium_transactions: 60000
+  claims_transactions: 40000
+  expense_records: 2000
+
+# Target financial metrics (EUR millions)
+targets:
+  total_assets_sii: 6500       # Total SII value of assets
+  total_gwp: 2000              # Gross written premiums
+  combined_ratio: 0.96         # Target combined ratio
+  scr_total: 1150              # Final SCR
+  bscr: 1350                   # Basic SCR before op risk and LAC
+
+# Lines of business (non-life direct)
+lines_of_business:
+  - code: "1"
+    name: "Medical expense insurance"
+    gwp_share: 0.08
+  - code: "2"
+    name: "Income protection insurance"
+    gwp_share: 0.06
+  - code: "4"
+    name: "Motor vehicle liability insurance"
+    gwp_share: 0.25
+  - code: "5"
+    name: "Other motor insurance"
+    gwp_share: 0.15
+  - code: "7"
+    name: "Fire and other damage to property insurance"
+    gwp_share: 0.25
+  - code: "8"
+    name: "General liability insurance"
+    gwp_share: 0.13
+  - code: "12"
+    name: "Miscellaneous financial loss"
+    gwp_share: 0.08
+
+# Asset allocation targets
+asset_allocation:
+  government_bonds: 0.60
+  corporate_bonds: 0.20
+  equity: 0.10
+  ciu: 0.05
+  property_and_other: 0.05

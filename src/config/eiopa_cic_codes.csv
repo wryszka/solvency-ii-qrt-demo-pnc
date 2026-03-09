@@ -1,0 +1,31 @@
+cic_category,cic_suffix,asset_class,description
+Government bonds,11,government_bonds,Central Government bonds
+Government bonds,12,government_bonds,Supra-national bonds
+Government bonds,13,government_bonds,Regional government bonds
+Corporate bonds,21,corporate_bonds,Corporate bonds
+Corporate bonds,22,corporate_bonds,Convertible bonds
+Corporate bonds,23,corporate_bonds,Commercial paper
+Equity,31,equity,Common equity - listed
+Equity,32,equity,Common equity - unlisted
+Equity,33,equity,Equity rights
+Collective investment undertakings,41,ciu,Equity funds
+Collective investment undertakings,42,ciu,Debt funds
+Collective investment undertakings,43,ciu,Money market funds
+Collective investment undertakings,44,ciu,Asset allocation funds
+Collective investment undertakings,45,ciu,Real estate funds
+Collective investment undertakings,46,ciu,Alternative funds
+Structured notes,51,structured_notes,Equity risk
+Structured notes,52,structured_notes,Interest rate risk
+Structured notes,53,structured_notes,Currency risk
+Structured notes,54,structured_notes,Credit risk
+Collateralised securities,61,collateralised,Collateralised securities
+Cash and deposits,71,cash,Cash
+Cash and deposits,72,cash,Transferable deposits
+Cash and deposits,79,cash,Other deposits
+Mortgages and loans,81,mortgages_loans,Mortgages to individuals
+Mortgages and loans,82,mortgages_loans,Other mortgages
+Mortgages and loans,84,mortgages_loans,Loans - collateralised
+Mortgages and loans,85,mortgages_loans,Loans - uncollateralised
+Property,91,property,Property for own use
+Property,92,property,Property for investment
+Property,99,property,Other property

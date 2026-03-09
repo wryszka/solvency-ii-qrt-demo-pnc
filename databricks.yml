@@ -1,0 +1,34 @@
+bundle:
+  name: solvency-ii-qrt-demo-pnc
+
+variables:
+  catalog_name:
+    description: Unity Catalog name for all demo tables
+    default: lr_serverless_aws_us_catalog
+  reporting_date:
+    description: Solvency II reporting reference date (YYYY-MM-DD)
+    default: "2025-12-31"
+  entity_lei:
+    description: LEI of the reporting undertaking (synthetic)
+    default: "5493001KJTIIGC8Y1R12"
+  entity_name:
+    description: Name of the reporting undertaking (synthetic)
+    default: "Europa Re Insurance SE"
+
+workspace:
+  host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      catalog_name: lr_serverless_aws_us_catalog
+
+  prod:
+    mode: production
+    variables:
+      catalog_name: lr_serverless_aws_us_catalog
+
+include:
+  - resources/*.yml

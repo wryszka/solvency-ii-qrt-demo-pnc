@@ -1,0 +1,6 @@
+module,market,default,life,health,non_life
+market,1.00,0.25,0.25,0.25,0.25
+default,0.25,1.00,0.25,0.25,0.50
+life,0.25,0.25,1.00,0.25,0.00
+health,0.25,0.25,0.25,1.00,0.00
+non_life,0.25,0.50,0.00,0.00,1.00
