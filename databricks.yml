@@ -4,7 +4,7 @@ bundle:
 variables:
   catalog_name:
     description: Unity Catalog name for all demo tables
-    default: lr_serverless_aws_us_catalog
+    default: main
   schema_name:
     description: Schema name for all demo tables (single schema design)
     default: solvency2demo
@@ -26,12 +26,12 @@ targets:
     mode: development
     default: true
     variables:
-      catalog_name: lr_serverless_aws_us_catalog
+      catalog_name: main
 
   prod:
     mode: production
     variables:
-      catalog_name: lr_serverless_aws_us_catalog
+      catalog_name: main
 
 include:
   - resources/*.yml
