@@ -1,0 +1,15 @@
+command:
+  - "python"
+  - "-m"
+  - "uvicorn"
+  - "app:app"
+  - "--host"
+  - "0.0.0.0"
+  - "--port"
+  - "8000"
+
+env:
+  - name: CATALOG_NAME
+    value: "lr_serverless_aws_us_catalog"
+  - name: SCHEMA_NAME
+    value: "solvency2demo"
