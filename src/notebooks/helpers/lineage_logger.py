@@ -11,6 +11,23 @@ import json
 import hashlib
 from datetime import datetime
 
+class _NumpySafeEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy types."""
+    def default(self, obj):
+        try:
+            import numpy as np
+            if isinstance(obj, (np.integer,)):
+                return int(obj)
+            if isinstance(obj, (np.floating,)):
+                return float(obj)
+            if isinstance(obj, (np.bool_,)):
+                return bool(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except ImportError:
+            pass
+        return super().default(obj)
+
 class LineageLogger:
     """Logs pipeline lineage and data quality checks to the audit schema."""
 
@@ -92,9 +109,9 @@ class LineageLogger:
             "transformation_desc": transformation_desc,
             "row_count_in": row_count_in,
             "row_count_out": row_count_out,
-            "columns_in": json.dumps(columns_in) if columns_in else None,
-            "columns_out": json.dumps(columns_out) if columns_out else None,
-            "parameters": json.dumps(parameters) if parameters else None,
+            "columns_in": json.dumps(columns_in, cls=_NumpySafeEncoder) if columns_in else None,
+            "columns_out": json.dumps(columns_out, cls=_NumpySafeEncoder) if columns_out else None,
+            "parameters": json.dumps(parameters, cls=_NumpySafeEncoder) if parameters else None,
             "notebook_path": notebook_path,
             "workspace_url": self.workspace_url,
             "catalog_name": self.catalog,
@@ -105,7 +122,7 @@ class LineageLogger:
             "duration_seconds": duration,
             "status": status,
             "error_message": error_message,
-            "data_quality_checks": json.dumps(data_quality_checks) if data_quality_checks else None,
+            "data_quality_checks": json.dumps(data_quality_checks, cls=_NumpySafeEncoder) if data_quality_checks else None,
             "checksum": checksum,
         }
 
