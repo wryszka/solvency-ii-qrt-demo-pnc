@@ -14,12 +14,13 @@ from datetime import datetime
 class LineageLogger:
     """Logs pipeline lineage and data quality checks to the audit schema."""
 
-    def __init__(self, spark, catalog, reporting_period, pipeline_run_id=None):
+    def __init__(self, spark, catalog, schema, reporting_period, pipeline_run_id=None):
         self.spark = spark
         self.catalog = catalog
+        self.schema = schema
         self.reporting_period = reporting_period
         self.pipeline_run_id = pipeline_run_id or str(uuid.uuid4())
-        self.audit_schema = f"{catalog}.qrt_demo_audit"
+        self.audit_prefix = f"{catalog}.{schema}"
         self._step_start_times = {}
 
         # Get current user and workspace
@@ -97,7 +98,7 @@ class LineageLogger:
             "notebook_path": notebook_path,
             "workspace_url": self.workspace_url,
             "catalog_name": self.catalog,
-            "schema_name": target_table.split(".")[-2] if target_table and "." in target_table else None,
+            "schema_name": self.schema,
             "reporting_period": self.reporting_period,
             "executed_by": self.executed_by,
             "executed_at": now,
@@ -143,7 +144,7 @@ class LineageLogger:
         ])
 
         df = self.spark.createDataFrame([record], schema=schema)
-        df.write.format("delta").mode("append").saveAsTable(f"{self.audit_schema}.pipeline_lineage")
+        df.write.format("delta").mode("append").saveAsTable(f"{self.audit_prefix}.audit_pipeline_lineage")
         print(f"  LINEAGE: {step_name} -> {target_table} ({status}, {row_count_out} rows)")
 
     def log_data_quality(self, step_name, table_name, check_name, check_category,
@@ -191,6 +192,6 @@ class LineageLogger:
         ])
 
         df = self.spark.createDataFrame([record], schema=schema)
-        df.write.format("delta").mode("append").saveAsTable(f"{self.audit_schema}.data_quality_log")
+        df.write.format("delta").mode("append").saveAsTable(f"{self.audit_prefix}.audit_data_quality_log")
         status_icon = "PASS" if passed else "FAIL"
         print(f"  DQ [{status_icon}]: {table_name} / {check_name} (expected={expected_value}, actual={actual_value})")

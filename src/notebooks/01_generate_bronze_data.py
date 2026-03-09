@@ -21,12 +21,14 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "lr_serverless_aws_us_catalog")
+dbutils.widgets.text("schema_name", "solvency2demo")
 dbutils.widgets.text("reporting_date", "2025-12-31")
 dbutils.widgets.text("entity_name", "Europa Re Insurance SE")
 dbutils.widgets.text("random_seed", "42")
 dbutils.widgets.text("scale_factor", "1.0")
 
 catalog = dbutils.widgets.get("catalog_name")
+schema = dbutils.widgets.get("schema_name")
 reporting_date = dbutils.widgets.get("reporting_date")
 entity_name = dbutils.widgets.get("entity_name")
 random_seed = int(dbutils.widgets.get("random_seed"))
@@ -34,7 +36,6 @@ scale_factor = float(dbutils.widgets.get("scale_factor"))
 
 reporting_year = int(reporting_date[:4])
 reporting_period = f"{reporting_year}-Q4"
-schema = "qrt_demo_bronze"
 
 print(f"Catalog:          {catalog}")
 print(f"Schema:           {schema}")
@@ -46,7 +47,7 @@ print(f"Scale factor:     {scale_factor}")
 # COMMAND ----------
 
 spark.sql(f"USE CATALOG {catalog}")
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+spark.sql(f"USE SCHEMA {schema}")
 
 # COMMAND ----------
 
@@ -71,10 +72,10 @@ rpt_date = datetime.strptime(reporting_date, "%Y-%m-%d").date()
 
 # Initialise lineage logger
 pipeline_params = {
-    "catalog_name": catalog, "reporting_date": reporting_date,
+    "catalog_name": catalog, "schema_name": schema, "reporting_date": reporting_date,
     "entity_name": entity_name, "random_seed": random_seed, "scale_factor": scale_factor
 }
-lineage = LineageLogger(spark, catalog, reporting_period)
+lineage = LineageLogger(spark, catalog, schema, reporting_period)
 lineage.start_step("01_generate_bronze_data")
 
 # COMMAND ----------
@@ -1726,19 +1727,19 @@ BRONZE_TABLE_DESCRIPTIONS = {
 
 print("Writing bronze tables to Unity Catalog...")
 counts = {}
-counts["counterparties"]        = write_delta(df_counterparties, "counterparties",        BRONZE_TABLE_DESCRIPTIONS["counterparties"])
-counts["assets"]                = write_delta(df_assets, "assets",                        BRONZE_TABLE_DESCRIPTIONS["assets"])
-counts["policies"]              = write_delta(df_policies, "policies",                    BRONZE_TABLE_DESCRIPTIONS["policies"])
-counts["premiums_transactions"] = write_delta(df_premiums, "premiums_transactions",       BRONZE_TABLE_DESCRIPTIONS["premiums_transactions"])
-counts["claims_transactions"]   = write_delta(df_claims, "claims_transactions",           BRONZE_TABLE_DESCRIPTIONS["claims_transactions"])
-counts["claims_triangles"]      = write_delta(df_triangles, "claims_triangles",           BRONZE_TABLE_DESCRIPTIONS["claims_triangles"])
-counts["expenses"]              = write_delta(df_expenses, "expenses",                    BRONZE_TABLE_DESCRIPTIONS["expenses"])
-counts["reinsurance_contracts"] = write_delta(df_reinsurance, "reinsurance_contracts",    BRONZE_TABLE_DESCRIPTIONS["reinsurance_contracts"])
-counts["technical_provisions"]  = write_delta(df_tp, "technical_provisions",              BRONZE_TABLE_DESCRIPTIONS["technical_provisions"])
-counts["own_funds_components"]  = write_delta(df_own_funds, "own_funds_components",       BRONZE_TABLE_DESCRIPTIONS["own_funds_components"])
-counts["risk_factors"]          = write_delta(df_risk_factors, "risk_factors",            BRONZE_TABLE_DESCRIPTIONS["risk_factors"])
-counts["scr_parameters"]        = write_delta(df_scr_params, "scr_parameters",           BRONZE_TABLE_DESCRIPTIONS["scr_parameters"])
-counts["balance_sheet_items"]   = write_delta(df_balance_sheet, "balance_sheet_items",    BRONZE_TABLE_DESCRIPTIONS["balance_sheet_items"])
+counts["bronze_counterparties"]        = write_delta(df_counterparties, "bronze_counterparties",        BRONZE_TABLE_DESCRIPTIONS["counterparties"])
+counts["bronze_assets"]                = write_delta(df_assets, "bronze_assets",                        BRONZE_TABLE_DESCRIPTIONS["assets"])
+counts["bronze_policies"]              = write_delta(df_policies, "bronze_policies",                    BRONZE_TABLE_DESCRIPTIONS["policies"])
+counts["bronze_premiums_transactions"] = write_delta(df_premiums, "bronze_premiums_transactions",       BRONZE_TABLE_DESCRIPTIONS["premiums_transactions"])
+counts["bronze_claims_transactions"]   = write_delta(df_claims, "bronze_claims_transactions",           BRONZE_TABLE_DESCRIPTIONS["claims_transactions"])
+counts["bronze_claims_triangles"]      = write_delta(df_triangles, "bronze_claims_triangles",           BRONZE_TABLE_DESCRIPTIONS["claims_triangles"])
+counts["bronze_expenses"]              = write_delta(df_expenses, "bronze_expenses",                    BRONZE_TABLE_DESCRIPTIONS["expenses"])
+counts["bronze_reinsurance_contracts"] = write_delta(df_reinsurance, "bronze_reinsurance_contracts",    BRONZE_TABLE_DESCRIPTIONS["reinsurance_contracts"])
+counts["bronze_technical_provisions"]  = write_delta(df_tp, "bronze_technical_provisions",              BRONZE_TABLE_DESCRIPTIONS["technical_provisions"])
+counts["bronze_own_funds_components"]  = write_delta(df_own_funds, "bronze_own_funds_components",       BRONZE_TABLE_DESCRIPTIONS["own_funds_components"])
+counts["bronze_risk_factors"]          = write_delta(df_risk_factors, "bronze_risk_factors",            BRONZE_TABLE_DESCRIPTIONS["risk_factors"])
+counts["bronze_scr_parameters"]        = write_delta(df_scr_params, "bronze_scr_parameters",           BRONZE_TABLE_DESCRIPTIONS["scr_parameters"])
+counts["bronze_balance_sheet_items"]   = write_delta(df_balance_sheet, "bronze_balance_sheet_items",    BRONZE_TABLE_DESCRIPTIONS["balance_sheet_items"])
 print("All tables written successfully.")
 
 # COMMAND ----------
@@ -1750,7 +1751,7 @@ print("All tables written successfully.")
 # COMMAND ----------
 
 TABLE_METADATA = {
-    "counterparties": {
+    "bronze_counterparties": {
         "table_comment": "Master counterparty register for all entities referenced in the investment portfolio, reinsurance programme, and banking relationships. Source system: synthetic (counterparty management). Grain: one row per counterparty. Used by: S.06.02 (issuer info), S.31.01 (reinsurer shares), counterparty default risk SCR.",
         "columns": {
             "counterparty_id":      "Unique internal identifier for the counterparty (e.g. CP00001). Primary key.",
@@ -1766,7 +1767,7 @@ TABLE_METADATA = {
             "group_lei":            "LEI of the parent group entity. Null if standalone or group LEI not available.",
         }
     },
-    "assets": {
+    "bronze_assets": {
         "table_comment": "Investment register containing all financial assets held by the undertaking at the reporting date. Source system: synthetic (investment management / custodian). Grain: one row per individual asset holding. Primary source for QRT S.06.02 (List of Assets). Also feeds S.02.01 balance sheet (investment assets) and market risk SCR inputs.",
         "columns": {
             "asset_id":             "Unique internal asset identifier (e.g. A000001). Primary key.",
@@ -1796,7 +1797,7 @@ TABLE_METADATA = {
             "reporting_period":     "Reporting period in YYYY-QN format (e.g. 2025-Q4).",
         }
     },
-    "policies": {
+    "bronze_policies": {
         "table_comment": "Policy administration register containing all P&C insurance policies across underwriting years 2020-2025. Source system: synthetic (policy admin). Grain: one row per policy. Feeds premium calculations for S.05.01 and claims linkage. LoB classification follows EIOPA Annex I to Delegated Regulation.",
         "columns": {
             "policy_id":            "Unique policy identifier (e.g. POL0000001). Primary key. Referenced by premiums_transactions and claims_transactions.",
@@ -1815,7 +1816,7 @@ TABLE_METADATA = {
             "reporting_period":     "Reporting period in YYYY-QN format.",
         }
     },
-    "premiums_transactions": {
+    "bronze_premiums_transactions": {
         "table_comment": "Premium accounting transactions at policy-transaction level. Covers 8 quarters (2024-Q1 to 2025-Q4). Source system: synthetic (general ledger / sub-ledger). Grain: one row per policy per quarter per transaction type. Aggregates to S.05.01 premium rows (R0110-R0300). Transaction types: written (policy inception/renewal), earned (pro-rata exposure), ceded_written, ceded_earned.",
         "columns": {
             "transaction_id":       "Unique transaction identifier (e.g. PT0000001). Primary key.",
@@ -1830,7 +1831,7 @@ TABLE_METADATA = {
             "underwriting_year":    "Original underwriting year of the policy generating this premium.",
         }
     },
-    "claims_transactions": {
+    "bronze_claims_transactions": {
         "table_comment": "Claims accounting transactions with development history. Covers accident years 2020-2025 with development years 0-5. Source system: synthetic (claims management). Grain: one row per claim per development event. Includes paid, reserve_change, incurred, and recovery transaction types. Supports S.05.01 claims rows (R0310-R0400), S.19.01 triangles, and technical provisions derivation.",
         "columns": {
             "claim_id":                 "Unique claim identifier (e.g. CLM0000001). Multiple rows per claim (one per development event).",
@@ -1850,7 +1851,7 @@ TABLE_METADATA = {
             "development_year":         "Number of years since the accident year (0 = same year as loss). Used for claims triangle construction.",
         }
     },
-    "claims_triangles": {
+    "bronze_claims_triangles": {
         "table_comment": "Pre-aggregated claims development triangles by LoB, accident year, and development year. Source: derived from claims_transactions. Grain: one row per LoB × accident year × development year. Designed for S.19.01 (Non-life Claims Information) and actuarial reserving analysis.",
         "columns": {
             "lob_code":                 "EIOPA line of business numeric code.",
@@ -1868,7 +1869,7 @@ TABLE_METADATA = {
             "reporting_period":         "Reporting period in YYYY-QN format.",
         }
     },
-    "expenses": {
+    "bronze_expenses": {
         "table_comment": "Expense allocation records by line of business and expense category. Source system: synthetic (general ledger / cost allocation). Grain: one row per expense record (allocated to LoB and category). Aggregates to S.05.01 expense rows (R0550-R1300). Total expense ratio targets ~30% of GWP.",
         "columns": {
             "expense_id":           "Unique expense record identifier (e.g. EXP000001). Primary key.",
@@ -1882,7 +1883,7 @@ TABLE_METADATA = {
             "accounting_year":      "Calendar year of the expense entry.",
         }
     },
-    "reinsurance_contracts": {
+    "bronze_reinsurance_contracts": {
         "table_comment": "Reinsurance programme structure — all treaty reinsurance contracts in force. Source system: synthetic (reinsurance management). Grain: one row per reinsurance contract. Covers quota share, excess of loss, surplus, and stop loss treaties. Supports S.30.03 (Outgoing Reinsurance Programme), S.31.01 (Share of Reinsurers), and cession calculations for all QRTs.",
         "columns": {
             "contract_id":          "Unique reinsurance contract identifier (e.g. RI0001). Primary key.",
@@ -1904,7 +1905,7 @@ TABLE_METADATA = {
             "reporting_period":     "Reporting period in YYYY-QN format.",
         }
     },
-    "technical_provisions": {
+    "bronze_technical_provisions": {
         "table_comment": "Solvency II technical provisions by line of business and provision type. Source: derived from claims reserves and actuarial best estimates. Grain: one row per LoB × provision type. Feeds S.17.01 (Non-Life Technical Provisions), S.02.01 balance sheet (liabilities side), and SCR calculations.",
         "columns": {
             "lob_code":                 "EIOPA line of business code. 0 = all lines (used for transitional measures).",
@@ -1916,7 +1917,7 @@ TABLE_METADATA = {
             "reporting_period":         "Reporting period in YYYY-QN format.",
         }
     },
-    "own_funds_components": {
+    "bronze_own_funds_components": {
         "table_comment": "Solvency II own funds breakdown by tier and component. Source: synthetic (balance sheet / capital management). Grain: one row per own funds component. Feeds S.23.01 (Own Funds) and solvency ratio calculation. Target total ~EUR 2B providing ~170% solvency ratio.",
         "columns": {
             "component_id":     "Unique component identifier (e.g. OF001). Primary key.",
@@ -1927,7 +1928,7 @@ TABLE_METADATA = {
             "reporting_period":  "Reporting period in YYYY-QN format.",
         }
     },
-    "risk_factors": {
+    "bronze_risk_factors": {
         "table_comment": "SCR Standard Formula sub-module capital charges. Source: synthetic (actuarial / risk management). Grain: one row per risk module × sub-module. Feeds S.25.01 (SCR Standard Formula) and S.26/S.27 detailed risk modules. BSCR target ~EUR 1.35B, final SCR ~EUR 1.15B.",
         "columns": {
             "risk_module":                      "Top-level SCR risk module: market, counterparty_default, non_life, health, operational, or intangible.",
@@ -1938,7 +1939,7 @@ TABLE_METADATA = {
             "reporting_period":                  "Reporting period in YYYY-QN format.",
         }
     },
-    "scr_parameters": {
+    "bronze_scr_parameters": {
         "table_comment": "SCR Standard Formula calibration parameters including inter-module correlation matrix, loss-absorbing capacity adjustments, operational risk factors, non-life premium/reserve sigma factors, and equity/property stress parameters. Source: EIOPA calibration (Delegated Regulation) plus entity-specific inputs. Grain: one row per parameter.",
         "columns": {
             "parameter_name":       "Parameter identifier. Naming convention: corr_<mod1>_<mod2> for correlations, lac_* for loss-absorbing capacity, op_risk_* for operational risk, nl_* for non-life, equity_*/property_*/currency_* for market risk shocks.",
@@ -1948,7 +1949,7 @@ TABLE_METADATA = {
             "reporting_period":     "Reporting period in YYYY-QN format.",
         }
     },
-    "balance_sheet_items": {
+    "bronze_balance_sheet_items": {
         "table_comment": "Solvency II balance sheet items in the S.02.01 reporting structure. Source: derived from assets, technical_provisions, and own_funds_components tables. Grain: one row per balance sheet line item. Asset totals reconcile to the assets table, liabilities include TP and other liabilities, excess of assets over liabilities equals own funds.",
         "columns": {
             "item_id":          "Unique balance sheet line item identifier (e.g. BS001). Primary key.",

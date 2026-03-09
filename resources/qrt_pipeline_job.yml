@@ -5,6 +5,8 @@ resources:
       parameters:
         - name: catalog_name
           default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
         - name: reporting_date
           default: ${var.reporting_date}
         - name: entity_lei
@@ -18,6 +20,7 @@ resources:
             notebook_path: src/notebooks/00_setup.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
           environment_key: default
 
         - task_key: generate_bronze_data
@@ -27,6 +30,7 @@ resources:
             notebook_path: src/notebooks/01_generate_bronze_data.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
               reporting_date: "{{job.parameters.reporting_date}}"
               entity_name: "{{job.parameters.entity_name}}"
           environment_key: default
@@ -38,6 +42,7 @@ resources:
             notebook_path: src/notebooks/02_silver_assets.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
           environment_key: default
 
         - task_key: silver_premiums_claims_expenses
@@ -47,6 +52,7 @@ resources:
             notebook_path: src/notebooks/03_silver_premiums_claims_expenses.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
           environment_key: default
 
         - task_key: silver_scr
@@ -56,6 +62,7 @@ resources:
             notebook_path: src/notebooks/04_silver_scr.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
           environment_key: default
 
         - task_key: gold_s0602
@@ -65,6 +72,7 @@ resources:
             notebook_path: src/notebooks/05_gold_s0602.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
               reporting_date: "{{job.parameters.reporting_date}}"
               entity_lei: "{{job.parameters.entity_lei}}"
           environment_key: default
@@ -76,6 +84,7 @@ resources:
             notebook_path: src/notebooks/06_gold_s0501.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
               reporting_date: "{{job.parameters.reporting_date}}"
               entity_lei: "{{job.parameters.entity_lei}}"
           environment_key: default
@@ -87,6 +96,7 @@ resources:
             notebook_path: src/notebooks/07_gold_s2501.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
               reporting_date: "{{job.parameters.reporting_date}}"
               entity_lei: "{{job.parameters.entity_lei}}"
           environment_key: default
@@ -100,6 +110,7 @@ resources:
             notebook_path: src/notebooks/08_validation.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
               reporting_date: "{{job.parameters.reporting_date}}"
           environment_key: default
 
