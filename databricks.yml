@@ -16,10 +16,11 @@ variables:
     default: "5493001KJTIIGC8Y1R12"
   entity_name:
     description: Name of the reporting undertaking (synthetic)
-    default: "Europa Re Insurance SE"
+    default: "Bricksurance SE"
 
 workspace:
-  host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
+  host: https://fevm-lr-classic-aws-us.cloud.databricks.com
+  profile: DEFAULT
 
 targets:
   dev:

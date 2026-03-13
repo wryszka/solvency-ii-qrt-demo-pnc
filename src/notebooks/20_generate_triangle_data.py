@@ -15,7 +15,7 @@
 dbutils.widgets.text("catalog_name", "main", "Catalog")
 dbutils.widgets.text("schema_name", "solvency2demo", "Schema")
 dbutils.widgets.text("reporting_date", "2025-12-31", "Reporting Date")
-dbutils.widgets.text("entity_name", "Europa Re Insurance SE", "Entity Name")
+dbutils.widgets.text("entity_name", "Bricksurance SE", "Entity Name")
 
 catalog = dbutils.widgets.get("catalog_name")
 schema = dbutils.widgets.get("schema_name")

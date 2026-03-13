@@ -53,7 +53,7 @@ export default function App() {
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Building2 className="w-4 h-4" />
               <div>
-                <p className="font-medium text-gray-300">Europa Re Insurance SE</p>
+                <p className="font-medium text-gray-300">Bricksurance SE</p>
                 <p>Q4 2025 Reporting</p>
               </div>
             </div>

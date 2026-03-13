@@ -1,7 +1,7 @@
 # Solvency II QRT Demo Parameters
 # Reporting entity
 entity:
-  name: "Europa Re Insurance SE"
+  name: "Bricksurance SE"
   lei: "5493001KJTIIGC8Y1R12"
   country: "DE"
   currency: "EUR"
