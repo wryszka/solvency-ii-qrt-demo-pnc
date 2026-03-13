@@ -49,12 +49,12 @@ SELECT
     SUM(CASE WHEN c.transaction_type = 'incurred'       THEN c.gross_amount_eur ELSE 0 END) AS gross_claims_incurred,
     SUM(CASE WHEN c.transaction_type = 'paid'            THEN c.gross_amount_eur ELSE 0 END) AS gross_claims_paid,
     SUM(CASE WHEN c.transaction_type = 'reserve_change'  THEN c.gross_amount_eur ELSE 0 END) AS gross_reserve_changes,
-    SUM(CASE WHEN c.transaction_type = 'incurred'       THEN c.reinsurance_amount_eur ELSE 0 END) AS reinsurers_share_incurred,
-    SUM(CASE WHEN c.transaction_type = 'paid'            THEN c.reinsurance_amount_eur ELSE 0 END) AS reinsurers_share_paid,
-    SUM(CASE WHEN c.transaction_type = 'reserve_change'  THEN c.reinsurance_amount_eur ELSE 0 END) AS reinsurers_share_reserve_changes,
-    SUM(CASE WHEN c.transaction_type = 'incurred'       THEN c.gross_amount_eur - c.reinsurance_amount_eur ELSE 0 END) AS net_claims_incurred,
-    SUM(CASE WHEN c.transaction_type = 'paid'            THEN c.gross_amount_eur - c.reinsurance_amount_eur ELSE 0 END) AS net_claims_paid,
-    SUM(CASE WHEN c.transaction_type = 'reserve_change'  THEN c.gross_amount_eur - c.reinsurance_amount_eur ELSE 0 END) AS net_reserve_changes
+    SUM(CASE WHEN c.transaction_type = 'incurred'       THEN c.reinsurance_recovery_eur ELSE 0 END) AS reinsurers_share_incurred,
+    SUM(CASE WHEN c.transaction_type = 'paid'            THEN c.reinsurance_recovery_eur ELSE 0 END) AS reinsurers_share_paid,
+    SUM(CASE WHEN c.transaction_type = 'reserve_change'  THEN c.reinsurance_recovery_eur ELSE 0 END) AS reinsurers_share_reserve_changes,
+    SUM(CASE WHEN c.transaction_type = 'incurred'       THEN c.gross_amount_eur - c.reinsurance_recovery_eur ELSE 0 END) AS net_claims_incurred,
+    SUM(CASE WHEN c.transaction_type = 'paid'            THEN c.gross_amount_eur - c.reinsurance_recovery_eur ELSE 0 END) AS net_claims_paid,
+    SUM(CASE WHEN c.transaction_type = 'reserve_change'  THEN c.gross_amount_eur - c.reinsurance_recovery_eur ELSE 0 END) AS net_reserve_changes
 FROM LIVE.bronze_claims_transactions c
 JOIN LIVE.bronze_policies pol ON c.policy_id = pol.policy_id
 GROUP BY c.reporting_period, pol.lob_code, pol.line_of_business
@@ -73,15 +73,14 @@ COMMENT 'Expense breakdown by category and line of business'
 AS
 SELECT
     e.reporting_period,
-    pol.lob_code,
-    pol.line_of_business,
-    SUM(CASE WHEN e.expense_category = 'acquisition'        THEN e.amount_eur ELSE 0 END) AS acquisition_expenses,
-    SUM(CASE WHEN e.expense_category = 'administrative'     THEN e.amount_eur ELSE 0 END) AS administrative_expenses,
-    SUM(CASE WHEN e.expense_category = 'claims_management'  THEN e.amount_eur ELSE 0 END) AS claims_management_expenses,
-    SUM(CASE WHEN e.expense_category = 'overhead'           THEN e.amount_eur ELSE 0 END) AS overhead_expenses,
-    SUM(CASE WHEN e.expense_category = 'investment'         THEN e.amount_eur ELSE 0 END) AS investment_management_expenses,
-    SUM(CASE WHEN e.expense_category = 'other'              THEN e.amount_eur ELSE 0 END) AS other_expenses,
-    SUM(e.amount_eur) AS total_expenses
+    e.lob_code,
+    e.line_of_business,
+    SUM(CASE WHEN e.expense_category = 'acquisition'        THEN e.gross_amount_eur ELSE 0 END) AS acquisition_expenses,
+    SUM(CASE WHEN e.expense_category = 'administrative'     THEN e.gross_amount_eur ELSE 0 END) AS administrative_expenses,
+    SUM(CASE WHEN e.expense_category = 'claims_management'  THEN e.gross_amount_eur ELSE 0 END) AS claims_management_expenses,
+    SUM(CASE WHEN e.expense_category = 'overhead'           THEN e.gross_amount_eur ELSE 0 END) AS overhead_expenses,
+    SUM(CASE WHEN e.expense_category = 'investment'         THEN e.gross_amount_eur ELSE 0 END) AS investment_management_expenses,
+    SUM(CASE WHEN e.expense_category = 'other'              THEN e.gross_amount_eur ELSE 0 END) AS other_expenses,
+    SUM(e.gross_amount_eur) AS total_expenses
 FROM LIVE.bronze_expenses e
-JOIN LIVE.bronze_policies pol ON e.policy_id = pol.policy_id
-GROUP BY e.reporting_period, pol.lob_code, pol.line_of_business
+GROUP BY e.reporting_period, e.lob_code, e.line_of_business
