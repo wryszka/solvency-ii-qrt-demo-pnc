@@ -17,7 +17,7 @@ resources:
       tasks:
         - task_key: generate_triangle_data
           notebook_task:
-            notebook_path: src/notebooks/20_generate_triangle_data.py
+            notebook_path: ../src/notebooks/20_generate_triangle_data.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -29,7 +29,7 @@ resources:
           depends_on:
             - task_key: generate_triangle_data
           notebook_task:
-            notebook_path: src/notebooks/21_silver_chain_ladder.py
+            notebook_path: ../src/notebooks/21_silver_chain_ladder.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -40,7 +40,7 @@ resources:
           depends_on:
             - task_key: chain_ladder
           notebook_task:
-            notebook_path: src/notebooks/22_gold_s1901.py
+            notebook_path: ../src/notebooks/22_gold_s1901.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -52,7 +52,7 @@ resources:
           depends_on:
             - task_key: chain_ladder
           notebook_task:
-            notebook_path: src/notebooks/23_gold_s2606.py
+            notebook_path: ../src/notebooks/23_gold_s2606.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -65,7 +65,7 @@ resources:
             - task_key: gold_s1901
             - task_key: gold_s2606
           notebook_task:
-            notebook_path: src/notebooks/24_validation_sf.py
+            notebook_path: ../src/notebooks/24_validation_sf.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"

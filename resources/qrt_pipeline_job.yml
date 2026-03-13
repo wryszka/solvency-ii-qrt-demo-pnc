@@ -17,7 +17,7 @@ resources:
       tasks:
         - task_key: setup
           notebook_task:
-            notebook_path: src/notebooks/00_setup.py
+            notebook_path: ../src/notebooks/00_setup.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -27,7 +27,7 @@ resources:
           depends_on:
             - task_key: setup
           notebook_task:
-            notebook_path: src/notebooks/01_generate_bronze_data.py
+            notebook_path: ../src/notebooks/01_generate_bronze_data.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -39,7 +39,7 @@ resources:
           depends_on:
             - task_key: generate_bronze_data
           notebook_task:
-            notebook_path: src/notebooks/02_silver_assets.py
+            notebook_path: ../src/notebooks/02_silver_assets.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -49,7 +49,7 @@ resources:
           depends_on:
             - task_key: generate_bronze_data
           notebook_task:
-            notebook_path: src/notebooks/03_silver_premiums_claims_expenses.py
+            notebook_path: ../src/notebooks/03_silver_premiums_claims_expenses.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -59,7 +59,7 @@ resources:
           depends_on:
             - task_key: generate_bronze_data
           notebook_task:
-            notebook_path: src/notebooks/04_silver_scr.py
+            notebook_path: ../src/notebooks/04_silver_scr.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -69,7 +69,7 @@ resources:
           depends_on:
             - task_key: silver_assets
           notebook_task:
-            notebook_path: src/notebooks/05_gold_s0602.py
+            notebook_path: ../src/notebooks/05_gold_s0602.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -81,7 +81,7 @@ resources:
           depends_on:
             - task_key: silver_premiums_claims_expenses
           notebook_task:
-            notebook_path: src/notebooks/06_gold_s0501.py
+            notebook_path: ../src/notebooks/06_gold_s0501.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -93,7 +93,7 @@ resources:
           depends_on:
             - task_key: silver_scr
           notebook_task:
-            notebook_path: src/notebooks/07_gold_s2501.py
+            notebook_path: ../src/notebooks/07_gold_s2501.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -107,7 +107,7 @@ resources:
             - task_key: gold_s0501
             - task_key: gold_s2501
           notebook_task:
-            notebook_path: src/notebooks/08_validation.py
+            notebook_path: ../src/notebooks/08_validation.py
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"

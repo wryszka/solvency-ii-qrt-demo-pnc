@@ -18,7 +18,7 @@ def get_workspace_client() -> WorkspaceClient:
 
     In a Databricks App the SDK auto-configures from the environment.
     Locally it uses the profile specified by DATABRICKS_PROFILE (default:
-    'fevm-lr-serverless').
+    'DEFAULT').
     """
     global _workspace_client
     if _workspace_client is None:
@@ -26,7 +26,7 @@ def get_workspace_client() -> WorkspaceClient:
             logger.info("Initialising WorkspaceClient (Databricks App mode)")
             _workspace_client = WorkspaceClient()
         else:
-            profile = os.getenv("DATABRICKS_PROFILE", "fevm-lr-serverless")
+            profile = os.getenv("DATABRICKS_PROFILE", "DEFAULT")
             logger.info(
                 "Initialising WorkspaceClient (local mode, profile=%s)", profile
             )
@@ -35,7 +35,7 @@ def get_workspace_client() -> WorkspaceClient:
 
 
 def get_catalog() -> str:
-    return os.getenv("CATALOG_NAME", "lr_serverless_aws_us_catalog")
+    return os.getenv("CATALOG_NAME", "lr_classic_aws_us_catalog")
 
 
 def get_schema() -> str:

@@ -4,7 +4,7 @@ bundle:
 variables:
   catalog_name:
     description: Unity Catalog name for all demo tables
-    default: main
+    default: lr_classic_aws_us_catalog
   schema_name:
     description: Schema name for all demo tables (single schema design)
     default: solvency2demo
@@ -22,17 +22,22 @@ workspace:
   host: https://fevm-lr-classic-aws-us.cloud.databricks.com
   profile: DEFAULT
 
+# ──────────────────────────────────────────────────────────────────────────────
+# CATALOG: To use a different catalog, change the default above (line 7)
+#          and/or override per target below. The setup notebook will attempt
+#          CREATE CATALOG IF NOT EXISTS — if that fails (no permission), it
+#          falls back to assuming the catalog already exists.
+#
+# WORKSPACE: Change the host/profile below to point to your workspace.
+# ──────────────────────────────────────────────────────────────────────────────
+
 targets:
   dev:
     mode: development
     default: true
-    variables:
-      catalog_name: main
 
   prod:
     mode: production
-    variables:
-      catalog_name: main
 
 include:
   - resources/*.yml

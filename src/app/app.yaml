@@ -10,6 +10,6 @@ command:
 
 env:
   - name: CATALOG_NAME
-    value: "lr_serverless_aws_us_catalog"
+    value: "lr_classic_aws_us_catalog"
   - name: SCHEMA_NAME
     value: "solvency2demo"

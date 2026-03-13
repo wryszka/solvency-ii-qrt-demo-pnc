@@ -10,7 +10,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "lr_serverless_aws_us_catalog")
+dbutils.widgets.text("catalog_name", "lr_classic_aws_us_catalog")
 dbutils.widgets.text("schema_name", "solvency2demo")
 dbutils.widgets.text("reporting_date", "2025-12-31")
 dbutils.widgets.text("entity_lei", "5493001KJTIIGC8Y1R12")
