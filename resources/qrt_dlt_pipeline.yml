@@ -1,0 +1,83 @@
+# Solvency II QRT Pipeline — Spark Declarative Pipelines (formerly DLT)
+#
+# Architecture:
+#   Job task 1: Setup + Bronze generation (regular notebooks — synthetic data via Faker)
+#   Job task 2: DLT pipeline (silver → gold) — SQL wherever possible, Python for SCR matrix math
+#
+# DLT provides: automatic lineage, data quality expectations, pipeline UI visualization
+
+resources:
+  pipelines:
+    qrt_dlt:
+      name: "solvency_ii_qrt_declarative_pipeline"
+      catalog: ${var.catalog_name}
+      target: ${var.schema_name}
+      channel: CURRENT
+      libraries:
+        - notebook:
+            path: ../src/pipeline/02_silver_assets.sql
+        - notebook:
+            path: ../src/pipeline/03_silver_premiums_claims.sql
+        - notebook:
+            path: ../src/pipeline/04_silver_scr.py
+        - notebook:
+            path: ../src/pipeline/05_gold_s0602.sql
+        - notebook:
+            path: ../src/pipeline/06_gold_s0501.sql
+        - notebook:
+            path: ../src/pipeline/07_gold_s2501.sql
+
+  jobs:
+    qrt_pipeline:
+      name: "solvency_ii_qrt_pnc_pipeline"
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+        - name: reporting_date
+          default: ${var.reporting_date}
+        - name: entity_lei
+          default: ${var.entity_lei}
+        - name: entity_name
+          default: ${var.entity_name}
+
+      tasks:
+        # Task 1: Create schema and audit tables
+        - task_key: setup
+          notebook_task:
+            notebook_path: ../src/notebooks/00_setup.py
+            base_parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
+          environment_key: default
+
+        # Task 2: Generate synthetic bronze data (Faker + NumPy)
+        - task_key: generate_bronze_data
+          depends_on:
+            - task_key: setup
+          notebook_task:
+            notebook_path: ../src/notebooks/01_generate_bronze_data.py
+            base_parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+              schema_name: "{{job.parameters.schema_name}}"
+              reporting_date: "{{job.parameters.reporting_date}}"
+              entity_name: "{{job.parameters.entity_name}}"
+          environment_key: default
+
+        # Task 3: Run DLT pipeline (silver + gold layers)
+        - task_key: dlt_silver_gold
+          depends_on:
+            - task_key: generate_bronze_data
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.qrt_dlt.id}
+            full_refresh: true
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - faker
+              - numpy
+              - pyyaml
