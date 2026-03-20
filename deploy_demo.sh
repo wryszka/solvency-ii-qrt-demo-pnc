@@ -24,6 +24,7 @@ SCHEMA="solvency2demo"
 WORKSPACE_DIR=""
 YEAR="2025"
 ENTITY="Bricksurance SE"
+WAREHOUSE_ID="c80acfa212bf1166"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -164,6 +165,53 @@ else
     echo "   You can run it manually from the workspace:"
     echo "   Open: $WORKSPACE_DIR/00_Generate_Data/bootstrap_archive"
     echo "   Set parameters: catalog_name=$CATALOG, schema_name=$SCHEMA, reporting_year=$YEAR"
+fi
+
+# Step 4: Create Lakeview dashboard and Genie space
+echo ">> Creating Lakeview dashboard and Genie space..."
+
+if [[ -f "${SCRIPT_DIR}/scripts/create_dashboard.py" ]]; then
+    python3 "${SCRIPT_DIR}/scripts/create_dashboard.py" 2>&1 | while read -r line; do
+        echo "   $line"
+    done
+else
+    echo "   scripts/create_dashboard.py not found — skipping dashboard creation."
+    echo "   Run it manually: python3 scripts/create_dashboard.py"
+fi
+
+# Create Genie space
+echo "   Creating Genie space..."
+GENIE_OUTPUT=$(databricks api post /api/2.0/genie/spaces --profile "$PROFILE" --json "{
+    \"title\": \"Solvency II QRT Assistant\",
+    \"description\": \"Ask questions about Bricksurance SE Solvency II QRT data.\",
+    \"warehouse_id\": \"$WAREHOUSE_ID\",
+    \"table_identifiers\": [
+        \"$CATALOG.$SCHEMA.assets_enriched\",
+        \"$CATALOG.$SCHEMA.s0602_list_of_assets\",
+        \"$CATALOG.$SCHEMA.s0602_summary\",
+        \"$CATALOG.$SCHEMA.premiums_by_lob\",
+        \"$CATALOG.$SCHEMA.claims_by_lob\",
+        \"$CATALOG.$SCHEMA.expenses_by_lob\",
+        \"$CATALOG.$SCHEMA.s0501_premiums_claims_expenses\",
+        \"$CATALOG.$SCHEMA.s0501_summary\",
+        \"$CATALOG.$SCHEMA.scr_results\",
+        \"$CATALOG.$SCHEMA.s2501_scr_breakdown\",
+        \"$CATALOG.$SCHEMA.s2501_summary\",
+        \"$CATALOG.$SCHEMA.own_funds\",
+        \"$CATALOG.$SCHEMA.balance_sheet\",
+        \"$CATALOG.$SCHEMA.risk_factors\",
+        \"$CATALOG.$SCHEMA.counterparties\",
+        \"$CATALOG.$SCHEMA.reinsurance\",
+        \"$CATALOG.$SCHEMA.volume_measures\"
+    ],
+    \"serialized_space\": \"{\\\"version\\\": 2, \\\"data_sources\\\": {}}\"
+}" 2>&1)
+
+GENIE_ID=$(echo "$GENIE_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('space_id',''))" 2>/dev/null || echo "")
+if [[ -n "$GENIE_ID" ]]; then
+    echo "   Genie space created: $GENIE_ID"
+else
+    echo "   Genie space creation returned: $GENIE_OUTPUT"
 fi
 
 echo ""

@@ -185,31 +185,33 @@ except Exception as e:
 
 # COMMAND ----------
 
-import subprocess, json as _json
-
-def _api_get(path):
-    r = subprocess.run(["databricks", "api", "get", path], capture_output=True, text=True, timeout=30)
-    return _json.loads(r.stdout) if r.returncode == 0 else {}
-
-def _api_delete(path):
-    subprocess.run(["databricks", "api", "delete", path], capture_output=True, text=True, timeout=30)
-
 try:
+    from databricks.sdk import WorkspaceClient
+    import requests
+
+    w = WorkspaceClient()
+    api_client = w.api_client
+
     # Delete Lakeview dashboards matching "Solvency II QRT"
-    dashboards = _api_get("/api/2.0/lakeview/dashboards")
-    for d in dashboards.get("dashboards", []):
+    print("Looking for Lakeview dashboards ...")
+    resp = api_client.do("GET", "/api/2.0/lakeview/dashboards")
+    dashboards = resp.get("dashboards", [])
+    for d in dashboards:
         if "Solvency II QRT" in (d.get("display_name") or ""):
             did = d["dashboard_id"]
             print(f"  Deleting dashboard {did}: {d['display_name']}")
-            _api_delete(f"/api/2.0/lakeview/dashboards/{did}")
+            api_client.do("DELETE", f"/api/2.0/lakeview/dashboards/{did}")
 
     # Delete Genie spaces matching "Solvency II QRT"
-    spaces = _api_get("/api/2.0/genie/spaces")
-    for s in spaces.get("spaces", []):
+    print("Looking for Genie spaces ...")
+    resp = api_client.do("GET", "/api/2.0/genie/spaces")
+    spaces = resp.get("spaces", [])
+    for s in spaces:
         if "Solvency II QRT" in (s.get("title") or ""):
             sid = s["space_id"]
             print(f"  Deleting Genie space {sid}: {s['title']}")
-            _api_delete(f"/api/2.0/genie/spaces/{sid}")
+            api_client.do("DELETE", f"/api/2.0/genie/spaces/{sid}")
+
 except Exception as e:
     print(f"Could not delete dashboards/genie spaces: {e}")
 
@@ -296,6 +298,7 @@ print(f"  Schema {catalog}.{schema}     — dropped")
 print(f"  MLflow model                   — deleted")
 print(f"  App {app_name}                 — deleted")
 print(f"  QRT jobs & DLT pipelines       — deleted")
+print(f"  Dashboard & Genie space        — deleted")
 print(f"  Workspace files                — deleted")
 print()
 print("If anything failed above, check the workspace UI for leftovers.")
