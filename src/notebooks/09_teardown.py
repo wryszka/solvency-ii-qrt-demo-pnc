@@ -155,6 +155,7 @@ job_names = [
     "QRT S.06.02",
     "QRT S.05.01",
     "QRT S.25.01",
+    "Register Standard Formula Model",
 ]
 
 pipeline_names = [
