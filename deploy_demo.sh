@@ -147,7 +147,7 @@ RUN_ID=$(echo "$RUN_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.s
 if [[ -n "$RUN_ID" ]]; then
     echo "   Bootstrap job submitted: run_id=$RUN_ID"
     echo "   Waiting for completion..."
-    databricks jobs get-run "$RUN_ID" --profile "$PROFILE" --wait 2>/dev/null
+    databricks jobs get-run "$RUN_ID" --profile "$PROFILE" --wait 2>/dev/null || true
 
     STATE=$(databricks jobs get-run "$RUN_ID" --profile "$PROFILE" -o json 2>/dev/null \
         | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['state']['result_state'])" 2>/dev/null || echo "UNKNOWN")
