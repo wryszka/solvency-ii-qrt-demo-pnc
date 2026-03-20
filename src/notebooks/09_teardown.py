@@ -181,6 +181,41 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 4b. Delete Lakeview dashboards and Genie spaces
+
+# COMMAND ----------
+
+import subprocess, json as _json
+
+def _api_get(path):
+    r = subprocess.run(["databricks", "api", "get", path], capture_output=True, text=True, timeout=30)
+    return _json.loads(r.stdout) if r.returncode == 0 else {}
+
+def _api_delete(path):
+    subprocess.run(["databricks", "api", "delete", path], capture_output=True, text=True, timeout=30)
+
+try:
+    # Delete Lakeview dashboards matching "Solvency II QRT"
+    dashboards = _api_get("/api/2.0/lakeview/dashboards")
+    for d in dashboards.get("dashboards", []):
+        if "Solvency II QRT" in (d.get("display_name") or ""):
+            did = d["dashboard_id"]
+            print(f"  Deleting dashboard {did}: {d['display_name']}")
+            _api_delete(f"/api/2.0/lakeview/dashboards/{did}")
+
+    # Delete Genie spaces matching "Solvency II QRT"
+    spaces = _api_get("/api/2.0/genie/spaces")
+    for s in spaces.get("spaces", []):
+        if "Solvency II QRT" in (s.get("title") or ""):
+            sid = s["space_id"]
+            print(f"  Deleting Genie space {sid}: {s['title']}")
+            _api_delete(f"/api/2.0/genie/spaces/{sid}")
+except Exception as e:
+    print(f"Could not delete dashboards/genie spaces: {e}")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## 5. Delete workspace files
 
 # COMMAND ----------
