@@ -52,6 +52,7 @@ async def get_approval(qrt_id: str):
     if qrt_id not in VALID_QRTS:
         raise HTTPException(404, "Unknown QRT")
     try:
+        await ensure_approvals_table()
         rows = await execute_query(f"""
             SELECT * FROM {fqn('qrt_approvals')}
             WHERE qrt_id = '{qrt_id}'
@@ -84,6 +85,7 @@ async def submit_for_review(qrt_id: str):
     if qrt_id not in VALID_QRTS:
         raise HTTPException(404, "Unknown QRT")
 
+    await ensure_approvals_table()
     approval_id = str(uuid.uuid4())
     submitted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     submitted_by = get_current_user()
@@ -128,6 +130,7 @@ async def review_qrt(qrt_id: str, request: ReviewRequest):
     if request.status not in ("approved", "rejected"):
         raise HTTPException(400, "Status must be 'approved' or 'rejected'")
 
+    await ensure_approvals_table()
     reviewed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     reviewed_by = get_current_user()
     comments_escaped = (request.comments or "").replace("'", "''")
