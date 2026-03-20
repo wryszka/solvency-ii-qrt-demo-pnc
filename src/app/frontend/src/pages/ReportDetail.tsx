@@ -95,7 +95,7 @@ function ContentTab({ qrtId }: { qrtId: string }) {
   if (!data || !data.data.length) return <Empty msg="No data available" />;
 
   const rows = data.data;
-  const columns = Object.keys(rows[0]);
+  const columns = Object.keys(rows[0]).filter((c) => !HIDDEN_COLS.has(c));
 
   // For S.05.01, render as pivot table
   if (qrtId === 's0501') return <S0501Content rows={rows} qrtId={qrtId} />;
@@ -134,7 +134,7 @@ function ContentTab({ qrtId }: { qrtId: string }) {
                 <tr key={i} className={`border-b border-gray-100 ${isHighlight ? 'bg-blue-50 font-semibold' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                   {columns.map((col) => (
                     <td key={col} className="px-3 py-1.5 text-gray-800 whitespace-nowrap">
-                      {isNumericCol(col) ? formatEur(row[col]) : String(row[col] ?? '\u2014')}
+                      {formatCell(col, row[col])}
                     </td>
                   ))}
                 </tr>
@@ -164,8 +164,34 @@ function ContentTab({ qrtId }: { qrtId: string }) {
 
 function isNumericCol(col: string): boolean {
   const lower = col.toLowerCase();
-  return lower.includes('amount') || lower.includes('eur') || lower.includes('sii')
-    || lower.includes('value') || lower.includes('accrued') || lower.includes('acquisition');
+  return (lower.includes('amount') || lower.includes('eur') || lower.includes('sii')
+    || lower.includes('accrued') || lower.includes('acquisition')
+    || lower.includes('c0130') || lower.includes('c0140') || lower.includes('c0160')
+    || lower.includes('c0170') || lower.includes('c0180'))
+    && !lower.includes('method') && !lower.includes('type') && !lower.includes('code');
+}
+
+// Columns that are always empty/zero for P&C — hide to reduce clutter
+const HIDDEN_COLS = new Set([
+  'C0070_Fund_Number', 'C0080_Matching_Adj_Portfolio',
+  'C0090_Unit_Linked', 'C0100_Pledged_As_Collateral',
+  'C0240_Issuer_Group_Code', 'C0320_Internal_Rating',
+]);
+
+function formatCell(col: string, value: unknown): string {
+  if (value == null || value === '') return '\u2014';
+  // Infrastructure flag: 0/1 → No/Yes
+  if (col === 'C0280_Infrastructure_Investment') return value === '1' ? 'Yes' : 'No';
+  // Valuation method: 1=Mark-to-market, 2=Mark-to-model
+  if (col === 'C0150_Valuation_Method') return value === '1' ? 'Mark-to-market' : 'Mark-to-model';
+  // Credit quality step: strip trailing .0
+  if (col === 'C0310_Credit_Quality_Step') {
+    const s = String(value).replace(/\.0$/, '');
+    return `CQS ${s}`;
+  }
+  // Numeric columns
+  if (isNumericCol(col)) return formatEur(value as number | string);
+  return String(value);
 }
 
 /* ─── S.05.01 pivot ─── */
