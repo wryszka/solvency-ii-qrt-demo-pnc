@@ -53,7 +53,10 @@ def get_workspace_host() -> str:
             host = get_workspace_client().config.host
         except Exception:
             host = "https://fevm-lr-serverless-aws-us.cloud.databricks.com"
-    return host.rstrip("/")
+    host = host.rstrip("/")
+    if host and not host.startswith("http"):
+        host = f"https://{host}"
+    return host
 
 
 def get_current_user() -> str:
