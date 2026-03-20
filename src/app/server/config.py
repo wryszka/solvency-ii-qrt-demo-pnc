@@ -39,7 +39,7 @@ def fqn(table: str) -> str:
 
 
 def get_dashboard_id() -> str:
-    return os.getenv("DASHBOARD_ID", "01f1244c1206118fb4cfdf90f7c9dbfb")
+    return os.getenv("DASHBOARD_ID", "01f124504e64140e897eb5cde2f8bf88")
 
 
 def get_genie_space_id() -> str:

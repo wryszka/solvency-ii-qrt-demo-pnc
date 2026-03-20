@@ -28,10 +28,13 @@ datasets = []
 
 
 def ds(name, display, sql):
+    # queryLines must be a single-element array with the full query on one line
+    # Multi-line SQL with newlines causes Lakeview to fail silently
+    oneline = " ".join(line.strip() for line in sql.strip().splitlines())
     datasets.append({
         "name": name,
         "displayName": display,
-        "queryLines": [sql],
+        "queryLines": [oneline],
     })
     return name
 
