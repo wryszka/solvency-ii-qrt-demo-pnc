@@ -100,48 +100,26 @@ except Exception as e:
 
 # COMMAND ----------
 
-import subprocess, json
-
-def run_cli(args: list[str]) -> tuple[int, str]:
-    """Run a databricks CLI command and return (returncode, output)."""
-    result = subprocess.run(
-        ["databricks"] + args,
-        capture_output=True, text=True, timeout=60
-    )
-    return result.returncode, (result.stdout + result.stderr).strip()
-
-# Stop the app first (must be stopped before delete)
-print(f"Stopping app '{app_name}' ...")
-rc, out = run_cli(["apps", "stop", app_name])
-if rc == 0:
-    print("App stop initiated.")
-else:
-    print(f"App stop: {out}")
-
-# COMMAND ----------
-
 import time
 
-# Wait briefly for stop to take effect
-print("Waiting 10s for app to stop ...")
-time.sleep(10)
+try:
+    from databricks.sdk import WorkspaceClient
+    w = WorkspaceClient()
 
-print(f"Deleting app '{app_name}' ...")
-rc, out = run_cli(["apps", "delete", app_name])
-if rc == 0:
-    print("Done — app deleted.")
-else:
-    # Try force via API if CLI doesn't support delete directly
-    print(f"App delete via CLI: {out}")
-    print("Attempting via REST API ...")
+    print(f"Stopping app '{app_name}' ...")
     try:
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
-        w.apps.delete(name=app_name)
-        print("Done — app deleted via SDK.")
+        w.apps.stop(app_name)
+        print("  App stop initiated. Waiting 10s ...")
+        time.sleep(10)
     except Exception as e:
-        print(f"Could not delete app: {e}")
-        print("  You may need to delete it manually from the workspace UI.")
+        print(f"  App stop: {e}")
+
+    print(f"Deleting app '{app_name}' ...")
+    w.apps.delete(name=app_name)
+    print("Done — app deleted.")
+except Exception as e:
+    print(f"Could not delete app: {e}")
+    print("  (This is expected if the app was never created.)")
 
 # COMMAND ----------
 
@@ -251,13 +229,21 @@ except Exception as e:
 
 # COMMAND ----------
 
+import subprocess
+
 print("Attempting `databricks bundle destroy` (best-effort) ...")
-rc, out = run_cli(["bundle", "destroy", "--auto-approve"])
-if rc == 0:
-    print("Done — bundle resources destroyed.")
-else:
-    print(f"Bundle destroy: {out}")
-    print("  (This is expected if running from workspace — bundle destroy works best from local repo.)")
+try:
+    result = subprocess.run(
+        ["databricks", "bundle", "destroy", "--auto-approve"],
+        capture_output=True, text=True, timeout=60
+    )
+    if result.returncode == 0:
+        print("Done — bundle resources destroyed.")
+    else:
+        print(f"Bundle destroy: {(result.stdout + result.stderr).strip()}")
+        print("  (This is expected if running from workspace — bundle destroy works best from local repo.)")
+except Exception as e:
+    print(f"Bundle destroy skipped: {e}")
 
 # COMMAND ----------
 
