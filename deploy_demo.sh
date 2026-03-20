@@ -214,6 +214,44 @@ else
     echo "   Genie space creation returned: $GENIE_OUTPUT"
 fi
 
+# Step 5: Deploy the Databricks App
+echo ">> Deploying Databricks App..."
+APP_NAME="solvency2-qrt"
+APP_WS_PATH="/Workspace/Users/${USERNAME}/solvency-ii-qrt-demo/04_App"
+
+# Create the app (ignore error if it already exists)
+databricks apps create "$APP_NAME" --profile "$PROFILE" 2>/dev/null || true
+
+# Upload app source files (skip .venv and node_modules)
+echo "   Uploading app files..."
+databricks workspace mkdirs "$APP_WS_PATH/frontend/dist/assets" --profile "$PROFILE"
+databricks workspace mkdirs "$APP_WS_PATH/server/routes" --profile "$PROFILE"
+
+for f in app.py app.yaml requirements.txt; do
+    [[ -f "$SRC_DIR/app/$f" ]] && databricks workspace import "$APP_WS_PATH/$f" \
+        --file "$SRC_DIR/app/$f" --format AUTO --overwrite --profile "$PROFILE" 2>/dev/null
+done
+for f in server/__init__.py server/config.py server/sql.py server/routes/__init__.py server/routes/reports.py server/routes/approvals.py; do
+    [[ -f "$SRC_DIR/app/$f" ]] && databricks workspace import "$APP_WS_PATH/$f" \
+        --file "$SRC_DIR/app/$f" --format AUTO --overwrite --profile "$PROFILE" 2>/dev/null
+done
+for f in "$SRC_DIR/app/frontend/dist/"*; do
+    [[ -f "$f" ]] && databricks workspace import "$APP_WS_PATH/frontend/dist/$(basename "$f")" \
+        --file "$f" --format AUTO --overwrite --profile "$PROFILE" 2>/dev/null
+done
+for f in "$SRC_DIR/app/frontend/dist/assets/"*; do
+    [[ -f "$f" ]] && databricks workspace import "$APP_WS_PATH/frontend/dist/assets/$(basename "$f")" \
+        --file "$f" --format AUTO --overwrite --profile "$PROFILE" 2>/dev/null
+done
+
+echo "   Deploying app..."
+databricks apps deploy "$APP_NAME" --source-code-path "$APP_WS_PATH" --profile "$PROFILE" 2>&1 \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   App status: {d.get(\"status\",{}).get(\"state\",\"unknown\")}')" 2>/dev/null \
+    || echo "   App deploy may need manual start."
+
+APP_URL=$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('url',''))" 2>/dev/null || echo "")
+
 echo ""
 echo "============================================"
 echo "  Deployment complete!"
@@ -229,6 +267,11 @@ echo "  To generate Q4 data for the live demo:"
 echo "    Open: $WORKSPACE_DIR/00_Generate_Data/generate_data"
 echo "    Set reporting_period=2025-Q4"
 echo ""
+if [[ -n "$APP_URL" ]]; then
+echo "  App URL:"
+echo "    $APP_URL"
+echo ""
+fi
 echo "  To tear down everything:"
 echo "    Open: $WORKSPACE_DIR/00_Generate_Data/teardown"
 echo "    Or run: databricks workspace delete \"$WORKSPACE_DIR\" --recursive --profile $PROFILE"
