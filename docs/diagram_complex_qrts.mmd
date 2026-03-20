@@ -1,0 +1,116 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#1a1a2e",
+    "primaryBorderColor": "#cccccc",
+    "lineColor": "#555555",
+    "background": "#ffffff",
+    "mainBkg": "#ffffff",
+    "clusterBkg": "#f8f8f8",
+    "titleColor": "#1a1a2e",
+    "edgeLabelBackground": "#f0eeff",
+    "fontFamily": "Segoe UI, Arial, sans-serif",
+    "fontSize": "15px"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "padding": 22,
+    "htmlLabels": true,
+    "rankSpacing": 52,
+    "nodeSpacing": 32,
+    "useMaxWidth": false
+  }
+}}%%
+flowchart TB
+
+  %% ─── TITLE: use a single wide node with padding trick ───────────────────
+  TITLE["<div style='width:900px;text-align:center;padding:10px 0'><b style='font-size:24px;color:#1a1a2e'>Complex QRTs — Stochastic Engine Integration</b><br/><span style='font-size:14px;color:#888;letter-spacing:3px'>S.25.01 &nbsp;&nbsp;·&nbsp;&nbsp; S.19.01 &nbsp;&nbsp;·&nbsp;&nbsp; S.26.06</span></div>"]
+  style TITLE fill:#ffffff,stroke:#dddddd,stroke-width:1px,color:#1a1a2e
+
+  %% ─── BRONZE ROW ─────────────────────────────────────────────────────────
+  subgraph BRONZE["Bronze — Raw Ingestion"]
+    B1["<b>bronze_claims_triangles</b><br/><small>Claims System · development triangles</small>"]
+    B2["<b>bronze_exposures</b><br/><small>Policy Admin · exposure by peril &amp; LoB</small>"]
+    B3["<b>bronze_ri_structures</b><br/><small>Reinsurance · treaty structures</small>"]
+    B1 ~~~ B2 ~~~ B3
+  end
+
+  %% ─── SILVER 1 ROW ───────────────────────────────────────────────────────
+  subgraph SILVER1["Silver — Prepare Engine Inputs  ·  Chain ladder · exposure prep · RI structuring"]
+    S1A["<b>silver_chain_ladder</b><br/><small>Development factors · ultimate claims</small>"]
+    S1B["<b>silver_exposure_sets</b><br/><small>Formatted for engine input</small>"]
+    S1C["<b>silver_ri_program</b><br/><small>Reinsurance structure for engine</small>"]
+    S1A ~~~ S1B ~~~ S1C
+  end
+
+  %% ─── ENGINE ROW ─────────────────────────────────────────────────────────
+  subgraph ENGINE["Stochastic Engine (External) — Runs outside Databricks — API / file exchange"]
+    ENG_IN["<b>Receives from Databricks</b><br/><small>Exposure Sets<br/>RI Structures · Parameters</small>"]
+    ENG_HDR["<b style='font-size:15px'>Igloo / RAFM / ReMetrica</b><br/><small>10,000+ stochastic scenarios<br/>VaR · TVaR · percentiles by peril &amp; LoB</small>"]
+    ENG_OUT["<b>Returns to Databricks</b><br/><small>SCR by risk module<br/>Gross / Net / Ceded results</small>"]
+    ENG_IN --> ENG_HDR --> ENG_OUT
+  end
+
+  %% ─── SILVER 2 ROW ───────────────────────────────────────────────────────
+  subgraph SILVER2["Silver — Consume &amp; Aggregate Results  ·  EIOPA correlation matrix · diversification benefit"]
+    S2A["<b>silver_engine_results</b><br/><small>VaR · TVaR by peril &amp; LoB</small>"]
+    S2B["<b>silver_scr_modules</b><br/><small>Aggregated via EIOPA correlation matrix</small>"]
+    S2A ~~~ S2B
+  end
+
+  %% ─── GOLD ROW ───────────────────────────────────────────────────────────
+  subgraph GOLD["Gold — EIOPA Cell References"]
+    G1["<b>gold_qrt_s2501</b><br/><small>S.25.01 SCR · Standard Formula / Internal Model</small>"]
+    G2["<b>gold_qrt_s1901</b><br/><small>S.19.01 Claims Development Triangles</small>"]
+    G3["<b>gold_qrt_s2606</b><br/><small>S.26.06 NL Underwriting Risk</small>"]
+    G1 ~~~ G2 ~~~ G3
+  end
+
+  %% ─── GOVERNANCE ROW ─────────────────────────────────────────────────────
+  subgraph GOV["Governance &amp; Audit Trail — identical to simple path"]
+    GV1["<b>Unity Catalog</b><br/><small>Lineage &amp; access control</small>"]
+    GV2["<b>Data Quality</b><br/><small>Expectations</small>"]
+    GV3["<b>Approval Workflow</b>"]
+    GV4["<b>Regulatory Package</b>"]
+    GV1 ~~~ GV2 ~~~ GV3 ~~~ GV4
+  end
+
+  %% ─── MAIN VERTICAL FLOW ─────────────────────────────────────────────────
+  TITLE ~~~ BRONZE
+  BRONZE --> SILVER1
+  SILVER1 -->|"SEND to engine"| ENGINE
+  ENGINE -->|"CONSUME results"| SILVER2
+  SILVER2 --> GOLD
+  GOLD --> GOV
+
+  %% ─── STYLES ──────────────────────────────────────────────────────────────
+  style BRONZE fill:#fdf3e7,stroke:#c07830,stroke-width:2px,color:#5a2e00
+  style B1 fill:#f7d9a8,stroke:#c07830,color:#4a2500
+  style B2 fill:#f7d9a8,stroke:#c07830,color:#4a2500
+  style B3 fill:#f7d9a8,stroke:#c07830,color:#4a2500
+
+  style SILVER1 fill:#f0f3f9,stroke:#6880a0,stroke-width:2px,color:#1e3048
+  style S1A fill:#d8e2f0,stroke:#6880a0,color:#1e3048
+  style S1B fill:#d8e2f0,stroke:#6880a0,color:#1e3048
+  style S1C fill:#d8e2f0,stroke:#6880a0,color:#1e3048
+
+  style ENGINE fill:#160836,stroke:#8040ff,stroke-width:3px,color:#e0d0ff
+  style ENG_HDR fill:#2a1660,stroke:#8040ff,stroke-width:2px,color:#f0e8ff
+  style ENG_IN  fill:#2e1a72,stroke:#7030f0,color:#cdbeff
+  style ENG_OUT fill:#2e1a72,stroke:#7030f0,color:#cdbeff
+
+  style SILVER2 fill:#f0f3f9,stroke:#6880a0,stroke-width:2px,color:#1e3048
+  style S2A fill:#d8e2f0,stroke:#6880a0,color:#1e3048
+  style S2B fill:#d8e2f0,stroke:#6880a0,color:#1e3048
+
+  style GOLD fill:#fdfaeb,stroke:#b87d00,stroke-width:2px,color:#3d2700
+  style G1 fill:#f8e898,stroke:#b87d00,color:#3d2700
+  style G2 fill:#f8e898,stroke:#b87d00,color:#3d2700
+  style G3 fill:#f8e898,stroke:#b87d00,color:#3d2700
+
+  style GOV fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px,color:#0d3880
+  style GV1 fill:#c2d8fb,stroke:#1a73e8,color:#0d3880
+  style GV2 fill:#c2d8fb,stroke:#1a73e8,color:#0d3880
+  style GV3 fill:#c2d8fb,stroke:#1a73e8,color:#0d3880
+  style GV4 fill:#c2d8fb,stroke:#1a73e8,color:#0d3880

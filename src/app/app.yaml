@@ -1,15 +1,8 @@
-command:
-  - "python"
-  - "-m"
-  - "uvicorn"
-  - "app:app"
-  - "--host"
-  - "0.0.0.0"
-  - "--port"
-  - "8000"
-
+command: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 env:
   - name: CATALOG_NAME
-    value: "lr_classic_aws_us_catalog"
+    value: "lr_serverless_aws_us_catalog"
   - name: SCHEMA_NAME
-    value: "solvency2demo"
+    value: "solvency2_qrt"
+  - name: WAREHOUSE_ID
+    value: "c80acfa212bf1166"

@@ -10,11 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 def _execute_sync(sql: str) -> list[dict[str, Any]]:
-    """Synchronous SQL execution via the Databricks Statement Execution API."""
     client = get_workspace_client()
     warehouse_id = get_warehouse_id()
-
-    logger.debug("Executing SQL on warehouse %s: %s", warehouse_id, sql[:200])
+    logger.debug("SQL: %s", sql[:200])
 
     response = client.statement_execution.execute_statement(
         statement=sql,
@@ -23,18 +21,11 @@ def _execute_sync(sql: str) -> list[dict[str, Any]]:
     )
 
     if response.status and response.status.state == StatementState.FAILED:
-        error_msg = (
-            response.status.error.message
-            if response.status.error
-            else "Unknown SQL error"
-        )
-        logger.error("SQL execution failed: %s", error_msg)
-        raise RuntimeError(f"SQL execution failed: {error_msg}")
+        error_msg = response.status.error.message if response.status.error else "Unknown"
+        raise RuntimeError(f"SQL failed: {error_msg}")
 
-    if response.status and response.status.state != StatementState.SUCCEEDED:
-        raise RuntimeError(
-            f"SQL statement in unexpected state: {response.status.state}"
-        )
+    if not response.manifest or not response.manifest.schema or not response.manifest.schema.columns:
+        return []
 
     columns = [col.name for col in response.manifest.schema.columns]
     rows: list[dict[str, Any]] = []
@@ -53,10 +44,8 @@ def _execute_sync(sql: str) -> list[dict[str, Any]]:
                 for row_data in chunk.data_array:
                     rows.append(dict(zip(columns, row_data)))
 
-    logger.debug("Query returned %d rows", len(rows))
     return rows
 
 
 async def execute_query(sql: str) -> list[dict[str, Any]]:
-    """Async wrapper — runs the blocking SDK call in a thread."""
     return await asyncio.to_thread(_execute_sync, sql)

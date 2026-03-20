@@ -1,0 +1,98 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#1a1a2e",
+    "primaryBorderColor": "#cccccc",
+    "lineColor": "#999999",
+    "background": "#ffffff",
+    "mainBkg": "#ffffff",
+    "clusterBkg": "#fafafa",
+    "fontFamily": "Helvetica Neue, Arial, sans-serif",
+    "fontSize": "14px"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "padding": 32,
+    "nodeSpacing": 48,
+    "rankSpacing": 88
+  }
+}}%%
+
+flowchart LR
+
+  %% ── BRONZE ──────────────────────────────────────────────────────────────────
+  subgraph BRONZE["  Bronze — Raw Ingestion  "]
+    direction TB
+    SRC_INV["Investment Platform"]:::sourceBox
+    SRC_POL["Policy Admin System"]:::sourceBox
+    SRC_CLM["Claims System"]:::sourceBox
+    SRC_RI["Reinsurance System"]:::sourceBox
+
+    BR_AST["bronze_assets\n5 K assets"]:::bronzeBox
+    BR_POL["bronze_policies\n20 K policies"]:::bronzeBox
+    BR_CLM["bronze_claims\n60 K transactions"]:::bronzeBox
+    BR_RI["bronze_reinsurance"]:::bronzeBox
+
+    SRC_INV --> BR_AST
+    SRC_POL --> BR_POL
+    SRC_CLM --> BR_CLM
+    SRC_RI  --> BR_RI
+  end
+
+  %% ── SILVER ──────────────────────────────────────────────────────────────────
+  subgraph SILVER["  Silver — SQL / Spark Declarative Pipelines  "]
+    direction TB
+    SV_AST["silver_assets_enriched\nCIC decomposition · SII valuation"]:::silverBox
+    SV_PCE["silver_premiums_claims_expenses\nLoB aggregation · net = gross − RI"]:::silverBox
+    SV_NOTE["Pure SQL transforms.\nAn actuary can read the code."]:::noteBox
+  end
+
+  %% ── GOLD ────────────────────────────────────────────────────────────────────
+  subgraph GOLD["  Gold — EIOPA Cell References  "]
+    direction TB
+    GD_S0602["gold_qrt_s0602\nS.06.02  List of Assets"]:::goldBox
+    GD_S0501["gold_qrt_s0501\nS.05.01  Premiums, Claims & Expenses"]:::goldBox
+    GD_NOTE["Column rename to C0040, C0050…\nReady for Tagetik / XBRL export."]:::noteBox
+  end
+
+  %% ── GOVERNANCE ──────────────────────────────────────────────────────────────
+  subgraph GOV["  Governance & Audit Trail  "]
+    direction TB
+    UC["Unity Catalog\nlineage · access control"]:::govBox
+    DQ["Data Quality\nExpectations\nauto DQ checks"]:::govBox
+    WF["Approval\nWorkflow\nhuman sign-off"]:::govBox
+    PKG["Regulatory\nPackage\nZIP export"]:::govBox
+    UC --> DQ
+    DQ --> WF
+    WF --> PKG
+  end
+
+  %% ── MAIN FLOW ───────────────────────────────────────────────────────────────
+  BRONZE --> SILVER
+  SILVER --> GOLD
+  GOLD   --> GOV
+
+  BR_AST --> SV_AST
+  BR_POL --> SV_PCE
+  BR_CLM --> SV_PCE
+  BR_RI  --> SV_PCE
+
+  SV_AST --> GD_S0602
+  SV_PCE --> GD_S0501
+
+  GD_S0602 --> UC
+  GD_S0501 --> UC
+
+  %% ── STYLES ──────────────────────────────────────────────────────────────────
+  classDef sourceBox  fill:#fdf6ee,stroke:#c9956a,stroke-width:1.5px,color:#5a3010
+  classDef bronzeBox  fill:#f2d5a8,stroke:#a06828,stroke-width:2px,color:#3e2000
+  classDef silverBox  fill:#e4e4ea,stroke:#7a7a9a,stroke-width:2px,color:#1e1e3a
+  classDef goldBox    fill:#fff0a0,stroke:#b89800,stroke-width:2px,color:#3e3000
+  classDef govBox     fill:#d4e8ff,stroke:#3a6aaa,stroke-width:2px,color:#0e2244
+  classDef noteBox    fill:#fdfdf5,stroke:#d4d4b8,stroke-width:1px,color:#888866,font-style:italic
+
+  style BRONZE fill:#fef3e2,stroke:#a86820,stroke-width:2.5px,color:#3e2000
+  style SILVER fill:#f0f0f5,stroke:#7a7a9a,stroke-width:2.5px,color:#1e1e3a
+  style GOLD   fill:#fffce8,stroke:#b89800,stroke-width:2.5px,color:#3e3000
+  style GOV    fill:#e8f3ff,stroke:#3a6aaa,stroke-width:2.5px,color:#0e2244

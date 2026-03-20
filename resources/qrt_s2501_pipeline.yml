@@ -1,0 +1,59 @@
+# S.25.01 SCR Standard Formula — Model Run + DLT Pipeline
+#
+# DAG (visible in Databricks Workflows):
+#
+#   risk_factors ──→ [Run SF Model] ──→ scr_results ──╮
+#                    (Champion)                        ├──→ s2501_scr_breakdown → s2501_summary
+#                                        own_funds  ──╯    (EIOPA template)      (solvency ratio)
+#
+# Task 1: Loads the Standard Formula model from Unity Catalog and calculates SCR
+# Task 2: DLT pipeline maps results to EIOPA S.25.01 template and computes solvency ratio
+
+resources:
+  pipelines:
+    s2501_scr_pipeline:
+      name: "S.25.01 SCR Template"
+      catalog: ${var.catalog_name}
+      target: ${var.schema_name}
+      channel: CURRENT
+      serverless: true
+      libraries:
+        - notebook:
+            path: ../src/03_QRT_S2501_SCR/gold_s2501_scr_breakdown.sql
+        - notebook:
+            path: ../src/03_QRT_S2501_SCR/gold_s2501_summary.sql
+
+  jobs:
+    qrt_s2501:
+      name: "QRT S.25.01 — SCR Standard Formula"
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+        - name: reporting_period
+          default: "2025-Q4"
+
+      tasks:
+        # Step 1: Run the Standard Formula model (Champion version)
+        - task_key: run_sf_model
+          notebook_task:
+            notebook_path: ../src/03_QRT_S2501_SCR/run_standard_formula.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+          environment_key: default
+
+        # Step 2: Map results to EIOPA S.25.01 template
+        - task_key: build_s2501
+          depends_on:
+            - task_key: run_sf_model
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.s2501_scr_pipeline.id}
+            full_refresh: true
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies: ["mlflow", "numpy", "pandas"]

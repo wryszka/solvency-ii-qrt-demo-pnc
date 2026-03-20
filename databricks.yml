@@ -4,10 +4,10 @@ bundle:
 variables:
   catalog_name:
     description: Unity Catalog name for all demo tables
-    default: lr_classic_aws_us_catalog
+    default: lr_serverless_aws_us_catalog
   schema_name:
     description: Schema name for all demo tables (single schema design)
-    default: solvency2demo
+    default: solvency2_qrt
   reporting_date:
     description: Solvency II reporting reference date (YYYY-MM-DD)
     default: "2025-12-31"
@@ -19,7 +19,7 @@ variables:
     default: "Bricksurance SE"
 
 workspace:
-  host: https://fevm-lr-classic-aws-us.cloud.databricks.com
+  host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
   profile: DEFAULT
 
 # ──────────────────────────────────────────────────────────────────────────────

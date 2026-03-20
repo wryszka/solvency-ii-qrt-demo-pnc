@@ -1,0 +1,47 @@
+# S.06.02 List of Assets — DLT Pipeline + Workflow Job
+#
+# DAG (visible in Databricks Workflows):
+#
+#   assets ──→ assets_enriched ──→ s0602_list_of_assets ──→ s0602_summary
+#   (raw)      (CIC, SII val)      (EIOPA template)         (sign-off view)
+#
+# The DLT pipeline graph shows the same flow with DQ expectations at each step.
+
+resources:
+  pipelines:
+    s0602_assets_pipeline:
+      name: "S.06.02 List of Assets"
+      catalog: ${var.catalog_name}
+      target: ${var.schema_name}
+      channel: CURRENT
+      serverless: true
+      libraries:
+        - notebook:
+            path: ../src/01_QRT_S0602_Assets/silver_assets_enriched.sql
+        - notebook:
+            path: ../src/01_QRT_S0602_Assets/gold_s0602_list_of_assets.sql
+        - notebook:
+            path: ../src/01_QRT_S0602_Assets/gold_s0602_summary.sql
+
+  jobs:
+    qrt_s0602:
+      name: "QRT S.06.02 — List of Assets"
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+        - name: reporting_period
+          default: "2025-Q4"
+
+      tasks:
+        # Step 1: Run the DLT pipeline (silver → gold → summary)
+        - task_key: build_s0602
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.s0602_assets_pipeline.id}
+            full_refresh: true
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"

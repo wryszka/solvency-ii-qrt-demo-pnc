@@ -1,0 +1,53 @@
+# S.05.01 Premiums, Claims & Expenses — DLT Pipeline + Workflow Job
+#
+# DAG (visible in Databricks Workflows):
+#
+#   premiums → premiums_by_lob ──╮
+#   claims   → claims_by_lob   ──┼──→ s0501_premiums_claims_expenses → s0501_summary
+#   expenses → expenses_by_lob ──╯
+#   (raw)      (aggregated)          (EIOPA template, long format)     (sign-off view)
+#
+# The DLT pipeline graph shows the same flow with DQ expectations at each step.
+
+resources:
+  pipelines:
+    s0501_pnl_pipeline:
+      name: "S.05.01 Premiums, Claims & Expenses"
+      catalog: ${var.catalog_name}
+      target: ${var.schema_name}
+      channel: CURRENT
+      serverless: true
+      libraries:
+        - notebook:
+            path: ../src/02_QRT_S0501_PnL/silver_premiums_by_lob.sql
+        - notebook:
+            path: ../src/02_QRT_S0501_PnL/silver_claims_by_lob.sql
+        - notebook:
+            path: ../src/02_QRT_S0501_PnL/silver_expenses_by_lob.sql
+        - notebook:
+            path: ../src/02_QRT_S0501_PnL/gold_s0501_premiums_claims_expenses.sql
+        - notebook:
+            path: ../src/02_QRT_S0501_PnL/gold_s0501_summary.sql
+
+  jobs:
+    qrt_s0501:
+      name: "QRT S.05.01 — Premiums, Claims & Expenses"
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+        - name: reporting_period
+          default: "2025-Q4"
+
+      tasks:
+        # Step 1: Run the DLT pipeline (silver → gold → summary)
+        - task_key: build_s0501
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.s0501_pnl_pipeline.id}
+            full_refresh: true
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
