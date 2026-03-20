@@ -167,6 +167,59 @@ else
     echo "   Set parameters: catalog_name=$CATALOG, schema_name=$SCHEMA, reporting_year=$YEAR"
 fi
 
+# Step 3b: Deploy DAB bundle (DLT pipelines + workflow jobs)
+echo ">> Deploying DAB bundle (DLT pipelines + jobs)..."
+rm -rf "${SCRIPT_DIR}/.databricks/bundle/dev/sync-snapshots" "${SCRIPT_DIR}/.databricks/bundle/dev/fileset-snapshots" 2>/dev/null
+databricks bundle deploy --profile "$PROFILE" 2>&1 | while read -r line; do echo "   $line"; done
+
+# Step 3c: Register Standard Formula model
+echo ">> Registering Standard Formula model..."
+MODEL_OUTPUT=$(databricks jobs submit \
+    --json "{
+        \"run_name\": \"Register Standard Formula Model\",
+        \"tasks\": [{
+            \"task_key\": \"register_model\",
+            \"notebook_task\": {
+                \"notebook_path\": \"$WORKSPACE_DIR/03_QRT_S2501_SCR/register_standard_formula_model\",
+                \"base_parameters\": {
+                    \"catalog_name\": \"$CATALOG\",
+                    \"schema_name\": \"$SCHEMA\"
+                }
+            },
+            \"environment_key\": \"default\"
+        }],
+        \"environments\": [{
+            \"environment_key\": \"default\",
+            \"spec\": {
+                \"client\": \"1\",
+                \"dependencies\": [\"mlflow\", \"numpy\", \"pandas\"]
+            }
+        }]
+    }" \
+    --profile "$PROFILE" 2>&1)
+MODEL_STATE=$(echo "$MODEL_OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('state',{}).get('result_state','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
+echo "   Model registration: $MODEL_STATE"
+
+# Step 3d: Run all QRT pipelines
+echo ">> Running QRT pipelines..."
+databricks jobs list --profile "$PROFILE" -o json 2>/dev/null | python3 -c "
+import sys, json, subprocess
+jobs = json.load(sys.stdin)
+for j in (jobs.get('jobs', jobs) if isinstance(jobs, dict) else jobs):
+    name = j.get('settings',{}).get('name','')
+    if 'QRT S.' in name:
+        jid = str(j['job_id'])
+        subprocess.run(['databricks','jobs','run-now',jid,'--no-wait','--profile','$PROFILE'], capture_output=True)
+        print(f'   Triggered: {name}')
+" 2>/dev/null
+echo "   Pipelines triggered (running in background)."
+
+# Step 3e: Add table and column descriptions
+echo ">> Adding table descriptions..."
+if [[ -f "${SCRIPT_DIR}/scripts/add_descriptions.py" ]]; then
+    python3 "${SCRIPT_DIR}/scripts/add_descriptions.py" 2>&1 | grep -E "^(Adding|Done)" | while read -r line; do echo "   $line"; done
+fi
+
 # Step 4: Create Lakeview dashboard and Genie space
 echo ">> Creating Lakeview dashboard and Genie space..."
 

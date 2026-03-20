@@ -11,7 +11,9 @@
 # MAGIC - The Databricks App (`solvency2-qrt`)
 # MAGIC - The three per-QRT workflow jobs (S.06.02, S.05.01, S.25.01)
 # MAGIC - DLT pipelines
+# MAGIC - Lakeview dashboard and Genie space
 # MAGIC - Workspace files under `/Workspace/Users/<you>/solvency-ii-qrt-demo` and `/Workspace/Users/<you>/Solvency II QRT Demo`
+# MAGIC - Dashboard `.lvdash.json` file and `.bundle` state
 # MAGIC
 # MAGIC **This is irreversible. Run only when you want to completely remove the demo.**
 
@@ -246,13 +248,23 @@ try:
         except Exception:
             pass  # folder doesn't exist, skip
 
-    # Also clean up DAB bundle state directory
+    # Clean up DAB bundle state directory
     bundle_path = f"/Workspace/Users/{user_email}/.bundle/solvency-ii-qrt-demo-pnc"
     try:
         w.workspace.get_status(bundle_path)
         print(f"Deleting DAB bundle state at {bundle_path} ...")
         w.workspace.delete(bundle_path, recursive=True)
         print("  Done — .bundle state deleted.")
+    except Exception:
+        pass
+
+    # Clean up dashboard .lvdash.json file created in user's root
+    dashboard_file = f"/Workspace/Users/{user_email}/Solvency II QRT — Quarterly Comparison.lvdash.json"
+    try:
+        w.workspace.get_status(dashboard_file)
+        print(f"Deleting dashboard file ...")
+        w.workspace.delete(dashboard_file)
+        print("  Done — .lvdash.json deleted.")
     except Exception:
         pass
 
