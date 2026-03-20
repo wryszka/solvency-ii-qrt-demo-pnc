@@ -210,6 +210,11 @@ GENIE_OUTPUT=$(databricks api post /api/2.0/genie/spaces --profile "$PROFILE" --
 GENIE_ID=$(echo "$GENIE_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('space_id',''))" 2>/dev/null || echo "")
 if [[ -n "$GENIE_ID" ]]; then
     echo "   Genie space created: $GENIE_ID"
+    echo ""
+    echo "   ** MANUAL STEP REQUIRED **"
+    echo "   The Genie API does not support adding tables programmatically."
+    echo "   Open the Genie room and add tables from $CATALOG.$SCHEMA:"
+    echo "   https://$(databricks auth env --profile "$PROFILE" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['env'].get('DATABRICKS_HOST',''))" 2>/dev/null)/genie/rooms/$GENIE_ID"
 else
     echo "   Genie space creation returned: $GENIE_OUTPUT"
 fi
