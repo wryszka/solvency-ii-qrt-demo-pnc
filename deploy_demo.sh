@@ -252,6 +252,37 @@ databricks apps deploy "$APP_NAME" --source-code-path "$APP_WS_PATH" --profile "
 APP_URL=$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json 2>/dev/null \
     | python3 -c "import sys,json; print(json.load(sys.stdin).get('url',''))" 2>/dev/null || echo "")
 
+# Grant the app's service principal access to data and warehouse
+APP_SP=$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('service_principal_client_id',''))" 2>/dev/null || echo "")
+
+if [[ -n "$APP_SP" ]]; then
+    echo "   Granting permissions to app service principal $APP_SP..."
+
+    # Schema permissions
+    databricks api post /api/2.0/sql/statements --json "{
+        \"warehouse_id\": \"$WAREHOUSE_ID\",
+        \"statement\": \"GRANT USE CATALOG ON CATALOG $CATALOG TO \\\`$APP_SP\\\`\",
+        \"wait_timeout\": \"30s\"
+    }" --profile "$PROFILE" 2>/dev/null
+
+    databricks api post /api/2.0/sql/statements --json "{
+        \"warehouse_id\": \"$WAREHOUSE_ID\",
+        \"statement\": \"GRANT ALL PRIVILEGES ON SCHEMA $CATALOG.$SCHEMA TO \\\`$APP_SP\\\`\",
+        \"wait_timeout\": \"30s\"
+    }" --profile "$PROFILE" 2>/dev/null
+
+    # Warehouse access
+    databricks api patch "/api/2.0/permissions/sql/warehouses/$WAREHOUSE_ID" --profile "$PROFILE" --json "{
+        \"access_control_list\": [{
+            \"service_principal_name\": \"$APP_SP\",
+            \"permission_level\": \"CAN_USE\"
+        }]
+    }" 2>/dev/null
+
+    echo "   Permissions granted."
+fi
+
 echo ""
 echo "============================================"
 echo "  Deployment complete!"
