@@ -192,7 +192,7 @@ def bar_widget(dataset, x_field, y_field, title, color_field=None, stacked=False
     wid = uid()
     fields = [
         {"name": "x", "expression": f"`{x_field}`"},
-        {"name": "y", "expression": f"`{y_field}`"},
+        {"name": "y", "expression": f"SUM(`{y_field}`)"},
     ]
     if color_field:
         fields.append({"name": "color", "expression": f"`{color_field}`"})
@@ -215,7 +215,7 @@ def bar_widget(dataset, x_field, y_field, title, color_field=None, stacked=False
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
             "fields": fields,
-            "disaggregated": True,
+            "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "bar", "encodings": enc,
                  "frame": {"showTitle": True, "title": title}},
@@ -226,7 +226,7 @@ def line_widget(dataset, x_field, y_field, title, color_field=None):
     wid = uid()
     fields = [
         {"name": "x", "expression": f"`{x_field}`"},
-        {"name": "y", "expression": f"`{y_field}`"},
+        {"name": "y", "expression": f"SUM(`{y_field}`)"},
     ]
     enc = {
         "x": {"fieldName": "x", "scale": {"type": "categorical"}, "displayName": x_field},
@@ -241,7 +241,7 @@ def line_widget(dataset, x_field, y_field, title, color_field=None):
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
             "fields": fields,
-            "disaggregated": True,
+            "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "line", "encodings": enc,
                  "frame": {"showTitle": True, "title": title}},
@@ -252,7 +252,7 @@ def area_widget(dataset, x_field, y_field, title, color_field=None):
     wid = uid()
     fields = [
         {"name": "x", "expression": f"`{x_field}`"},
-        {"name": "y", "expression": f"`{y_field}`"},
+        {"name": "y", "expression": f"SUM(`{y_field}`)"},
     ]
     enc = {
         "x": {"fieldName": "x", "scale": {"type": "categorical"}, "displayName": x_field},
@@ -267,7 +267,7 @@ def area_widget(dataset, x_field, y_field, title, color_field=None):
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
             "fields": fields,
-            "disaggregated": True,
+            "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "area", "encodings": enc,
                  "frame": {"showTitle": True, "title": title}},
@@ -281,10 +281,10 @@ def pie_widget(dataset, angle_field, color_field, title):
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
             "fields": [
-                {"name": "angle", "expression": f"`{angle_field}`"},
+                {"name": "angle", "expression": f"SUM(`{angle_field}`)"},
                 {"name": "color", "expression": f"`{color_field}`"},
             ],
-            "disaggregated": True,
+            "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "pie",
                  "encodings": {
@@ -304,9 +304,9 @@ def heatmap_widget(dataset, x_field, y_field, color_field, title):
             "fields": [
                 {"name": "x", "expression": f"`{x_field}`"},
                 {"name": "y", "expression": f"`{y_field}`"},
-                {"name": "val", "expression": f"`{color_field}`"},
+                {"name": "val", "expression": f"SUM(`{color_field}`)"},
             ],
-            "disaggregated": True,
+            "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "heatmap",
                  "encodings": {
