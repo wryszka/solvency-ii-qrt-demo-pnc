@@ -6,7 +6,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "main")
+dbutils.widgets.text("catalog_name", "lr_serverless_aws_us_catalog")
 dbutils.widgets.text("schema_name", "solvency2demo")
 
 catalog = dbutils.widgets.get("catalog_name")

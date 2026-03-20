@@ -11,7 +11,7 @@
 # MAGIC - The Databricks App (`solvency2-qrt`)
 # MAGIC - The three per-QRT workflow jobs (S.06.02, S.05.01, S.25.01)
 # MAGIC - DLT pipelines
-# MAGIC - Workspace files under `/Workspace/Users/<you>/Solvency II QRT Demo`
+# MAGIC - Workspace files under `/Workspace/Users/<you>/solvency-ii-qrt-demo` and `/Workspace/Users/<you>/Solvency II QRT Demo`
 # MAGIC
 # MAGIC **This is irreversible. Run only when you want to completely remove the demo.**
 
@@ -52,21 +52,9 @@ if confirm != "yes":
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Drop schema (CASCADE drops all tables)
-
-# COMMAND ----------
-
-print(f"Dropping schema {catalog}.{schema} CASCADE ...")
-try:
-    spark.sql(f"DROP SCHEMA IF EXISTS `{catalog}`.`{schema}` CASCADE")
-    print("Done — schema dropped.")
-except Exception as e:
-    print(f"Could not drop schema: {e}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 2. Delete the MLflow model from Unity Catalog
+# MAGIC ## 1. Delete the MLflow model from Unity Catalog
+# MAGIC
+# MAGIC Must happen **before** dropping the schema, otherwise the model becomes orphaned.
 
 # COMMAND ----------
 
@@ -90,6 +78,20 @@ try:
 except Exception as e:
     print(f"Could not delete model: {e}")
     print("  (This is expected if the model was never registered.)")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2. Drop schema (CASCADE drops all tables)
+
+# COMMAND ----------
+
+print(f"Dropping schema {catalog}.{schema} CASCADE ...")
+try:
+    spark.sql(f"DROP SCHEMA IF EXISTS `{catalog}`.`{schema}` CASCADE")
+    print("Done — schema dropped.")
+except Exception as e:
+    print(f"Could not drop schema: {e}")
 
 # COMMAND ----------
 
@@ -206,15 +208,28 @@ except Exception as e:
 
 import os
 
+# Check both possible workspace folder names (deploy_demo.sh vs DAB bundle)
+workspace_folders = [
+    "Solvency II QRT Demo",
+    "solvency-ii-qrt-demo",
+    "solvency-ii-qrt-demo-pnc",
+]
+
 try:
     w = WorkspaceClient()
     me = w.current_user.me()
     user_email = me.user_name or me.display_name
-    workspace_path = f"/Workspace/Users/{user_email}/Solvency II QRT Demo"
 
-    print(f"Deleting workspace files at {workspace_path} ...")
-    w.workspace.delete(workspace_path, recursive=True)
-    print("Done — workspace files deleted.")
+    for folder in workspace_folders:
+        workspace_path = f"/Workspace/Users/{user_email}/{folder}"
+        try:
+            w.workspace.get_status(workspace_path)
+            print(f"Deleting workspace files at {workspace_path} ...")
+            w.workspace.delete(workspace_path, recursive=True)
+            print(f"  Done — {folder} deleted.")
+        except Exception:
+            pass  # folder doesn't exist, skip
+
 except Exception as e:
     print(f"Could not delete workspace files: {e}")
 
