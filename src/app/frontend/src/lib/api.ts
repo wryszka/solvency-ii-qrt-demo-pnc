@@ -141,3 +141,14 @@ export function submitForReview(qrtId: string): Promise<ApprovalRecord> {
 export function reviewApproval(qrtId: string, status: 'approved' | 'rejected', comments: string): Promise<unknown> {
   return postJson(`/api/approvals/${qrtId}/review`, { status, comments });
 }
+
+export interface EmbedUrls {
+  dashboard_url: string;
+  genie_url: string;
+  dashboard_id: string;
+  genie_space_id: string;
+}
+
+export function fetchEmbeds(): Promise<EmbedUrls> {
+  return fetchJson('/api/embeds');
+}

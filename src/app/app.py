@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.routes import reports, approvals
+from server.config import get_dashboard_id, get_genie_space_id, get_workspace_host
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,6 +43,19 @@ app.include_router(approvals.router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/api/embeds")
+async def embeds():
+    host = get_workspace_host()
+    dashboard_id = get_dashboard_id()
+    genie_space_id = get_genie_space_id()
+    return {
+        "dashboard_url": f"{host}/embed/dashboardsv3/{dashboard_id}",
+        "genie_url": f"{host}/embed/genie/rooms/{genie_space_id}",
+        "dashboard_id": dashboard_id,
+        "genie_space_id": genie_space_id,
+    }
 
 
 if FRONTEND_DIR.is_dir():

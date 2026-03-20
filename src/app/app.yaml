@@ -6,3 +6,7 @@ env:
     value: "solvency2demo"
   - name: WAREHOUSE_ID
     value: "c80acfa212bf1166"
+  - name: DASHBOARD_ID
+    value: "01f12433f1031ef6bee4f837bb4240d7"
+  - name: GENIE_SPACE_ID
+    value: "01f1243426d614fd806ddb1eec3b27d3"

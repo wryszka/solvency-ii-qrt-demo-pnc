@@ -38,6 +38,24 @@ def fqn(table: str) -> str:
     return f"{get_catalog()}.{get_schema()}.{table}"
 
 
+def get_dashboard_id() -> str:
+    return os.getenv("DASHBOARD_ID", "01f12433f1031ef6bee4f837bb4240d7")
+
+
+def get_genie_space_id() -> str:
+    return os.getenv("GENIE_SPACE_ID", "01f1243426d614fd806ddb1eec3b27d3")
+
+
+def get_workspace_host() -> str:
+    host = os.getenv("DATABRICKS_HOST", "")
+    if not host:
+        try:
+            host = get_workspace_client().config.host
+        except Exception:
+            host = "https://fevm-lr-serverless-aws-us.cloud.databricks.com"
+    return host.rstrip("/")
+
+
 def get_current_user() -> str:
     try:
         me = get_workspace_client().current_user.me()
