@@ -43,7 +43,7 @@ def get_dashboard_id() -> str:
 
 
 def get_genie_space_id() -> str:
-    return os.getenv("GENIE_SPACE_ID", "01f12449a1221505b647e252c7f537ae")
+    return os.getenv("GENIE_SPACE_ID", "01f1244a47ff19aabdc79f1c050bbc16")
 
 
 def get_workspace_host() -> str:

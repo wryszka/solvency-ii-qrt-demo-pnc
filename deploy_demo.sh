@@ -179,44 +179,41 @@ else
     echo "   Run it manually: python3 scripts/create_dashboard.py"
 fi
 
-# Create Genie space
+# Create Genie space with tables (tables must be sorted by identifier)
 echo "   Creating Genie space..."
-GENIE_OUTPUT=$(databricks api post /api/2.0/genie/spaces --profile "$PROFILE" --json "{
-    \"title\": \"Solvency II QRT Assistant\",
-    \"description\": \"Ask questions about Bricksurance SE Solvency II QRT data.\",
-    \"warehouse_id\": \"$WAREHOUSE_ID\",
-    \"table_identifiers\": [
-        \"$CATALOG.$SCHEMA.assets_enriched\",
-        \"$CATALOG.$SCHEMA.s0602_list_of_assets\",
-        \"$CATALOG.$SCHEMA.s0602_summary\",
-        \"$CATALOG.$SCHEMA.premiums_by_lob\",
-        \"$CATALOG.$SCHEMA.claims_by_lob\",
-        \"$CATALOG.$SCHEMA.expenses_by_lob\",
-        \"$CATALOG.$SCHEMA.s0501_premiums_claims_expenses\",
-        \"$CATALOG.$SCHEMA.s0501_summary\",
-        \"$CATALOG.$SCHEMA.scr_results\",
-        \"$CATALOG.$SCHEMA.s2501_scr_breakdown\",
-        \"$CATALOG.$SCHEMA.s2501_summary\",
-        \"$CATALOG.$SCHEMA.own_funds\",
-        \"$CATALOG.$SCHEMA.balance_sheet\",
-        \"$CATALOG.$SCHEMA.risk_factors\",
-        \"$CATALOG.$SCHEMA.counterparties\",
-        \"$CATALOG.$SCHEMA.reinsurance\",
-        \"$CATALOG.$SCHEMA.volume_measures\"
-    ],
-    \"serialized_space\": \"{\\\"version\\\": 2, \\\"data_sources\\\": {}}\"
-}" 2>&1)
+GENIE_PAYLOAD=$(python3 -c "
+import json
+tables = sorted([
+    'assets', 'premiums', 'claims', 'expenses', 'risk_factors',
+    'own_funds', 'balance_sheet', 'scr_results', 'counterparties',
+    'reinsurance', 'assets_enriched',
+    's0602_list_of_assets', 's0602_summary',
+    'premiums_by_lob', 'claims_by_lob', 'expenses_by_lob',
+    's0501_premiums_claims_expenses', 's0501_summary',
+    's2501_scr_breakdown', 's2501_summary',
+    'claims_triangles', 'volume_measures',
+])
+print(json.dumps({
+    'title': 'Solvency II QRT Assistant',
+    'description': 'Ask questions about Bricksurance SE Solvency II data: assets, premiums, claims, SCR, solvency ratio, own funds.',
+    'warehouse_id': '$WAREHOUSE_ID',
+    'parent_path': '/Workspace/Users/$USERNAME',
+    'serialized_space': json.dumps({
+        'version': 2,
+        'data_sources': {
+            'tables': [{'identifier': f'$CATALOG.$SCHEMA.{t}'} for t in tables]
+        }
+    })
+}))
+")
 
+GENIE_OUTPUT=$(echo "$GENIE_PAYLOAD" | databricks api post /api/2.0/genie/spaces --profile "$PROFILE" --json @- 2>&1)
 GENIE_ID=$(echo "$GENIE_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('space_id',''))" 2>/dev/null || echo "")
 if [[ -n "$GENIE_ID" ]]; then
-    echo "   Genie space created: $GENIE_ID"
-    echo ""
-    echo "   ** MANUAL STEP REQUIRED **"
-    echo "   The Genie API does not support adding tables programmatically."
-    echo "   Open the Genie room and add tables from $CATALOG.$SCHEMA:"
-    echo "   https://$(databricks auth env --profile "$PROFILE" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['env'].get('DATABRICKS_HOST',''))" 2>/dev/null)/genie/rooms/$GENIE_ID"
+    GENIE_TABLES=$(echo "$GENIE_OUTPUT" | python3 -c "import sys,json; ss=json.loads(json.load(sys.stdin).get('serialized_space','{}')); print(len(ss.get('data_sources',{}).get('tables',[])))" 2>/dev/null || echo "0")
+    echo "   Genie space created: $GENIE_ID ($GENIE_TABLES tables)"
 else
-    echo "   Genie space creation returned: $GENIE_OUTPUT"
+    echo "   Genie space creation failed: $GENIE_OUTPUT"
 fi
 
 # Step 5: Deploy the Databricks App
