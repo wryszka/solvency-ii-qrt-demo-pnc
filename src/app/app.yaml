@@ -7,6 +7,6 @@ env:
   - name: WAREHOUSE_ID
     value: "c80acfa212bf1166"
   - name: DASHBOARD_ID
-    value: "01f1243a2e2b109cad920b69228a73cd"
+    value: "01f1244c1206118fb4cfdf90f7c9dbfb"
   - name: GENIE_SPACE_ID
     value: "01f1244a47ff19aabdc79f1c050bbc16"

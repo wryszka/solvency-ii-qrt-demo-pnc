@@ -15,7 +15,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchEmbeds()
-      .then((e) => setUrl(e.dashboard_url.replace('/embed/dashboardsv3/', '/dashboardsv3/') + '/published'))
+      .then((e) => setUrl(e.dashboard_url.replace('/embed/dashboardsv3/', '/dashboardsv3/')))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

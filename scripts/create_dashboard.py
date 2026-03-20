@@ -174,14 +174,14 @@ def counter_widget(dataset, field, title):
         "name": wid,
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
-            "fields": [{"name": "val", "expression": f"`{field}`"}],
+            "fields": [{"name": field, "expression": f"`{field}`"}],
             "disaggregated": True,
         }}],
         "spec": {
             "version": 2,
             "widgetType": "counter",
             "encodings": {
-                "value": {"fieldName": "val", "displayName": title},
+                "value": {"fieldName": field, "displayName": title},
             },
             "frame": {"showTitle": True, "title": title},
         },
@@ -190,21 +190,22 @@ def counter_widget(dataset, field, title):
 
 def bar_widget(dataset, x_field, y_field, title, color_field=None, stacked=False, label=False, sort=None):
     wid = uid()
+    y_name = f"sum_{y_field}"
     fields = [
-        {"name": "x", "expression": f"`{x_field}`"},
-        {"name": "y", "expression": f"SUM(`{y_field}`)"},
+        {"name": x_field, "expression": f"`{x_field}`"},
+        {"name": y_name, "expression": f"SUM(`{y_field}`)"},
     ]
     if color_field:
-        fields.append({"name": "color", "expression": f"`{color_field}`"})
+        fields.append({"name": color_field, "expression": f"`{color_field}`"})
 
     enc = {
-        "x": {"fieldName": "x", "scale": {"type": "categorical"}, "displayName": x_field},
-        "y": {"fieldName": "y", "scale": {"type": "quantitative"}, "displayName": y_field},
+        "x": {"fieldName": x_field, "scale": {"type": "categorical"}, "displayName": x_field},
+        "y": {"fieldName": y_name, "scale": {"type": "quantitative"}, "displayName": y_field},
     }
     if sort:
         enc["x"]["scale"]["sort"] = {"by": sort}
     if color_field:
-        enc["color"] = {"fieldName": "color", "scale": {"type": "categorical"}, "displayName": color_field}
+        enc["color"] = {"fieldName": color_field, "scale": {"type": "categorical"}, "displayName": color_field}
     if label:
         enc["label"] = {"show": True}
     if stacked:
@@ -224,17 +225,18 @@ def bar_widget(dataset, x_field, y_field, title, color_field=None, stacked=False
 
 def line_widget(dataset, x_field, y_field, title, color_field=None):
     wid = uid()
+    y_name = f"sum_{y_field}"
     fields = [
-        {"name": "x", "expression": f"`{x_field}`"},
-        {"name": "y", "expression": f"SUM(`{y_field}`)"},
+        {"name": x_field, "expression": f"`{x_field}`"},
+        {"name": y_name, "expression": f"SUM(`{y_field}`)"},
     ]
     enc = {
-        "x": {"fieldName": "x", "scale": {"type": "categorical"}, "displayName": x_field},
-        "y": {"fieldName": "y", "scale": {"type": "quantitative"}, "displayName": y_field},
+        "x": {"fieldName": x_field, "scale": {"type": "categorical"}, "displayName": x_field},
+        "y": {"fieldName": y_name, "scale": {"type": "quantitative"}, "displayName": y_field},
     }
     if color_field:
-        fields.append({"name": "color", "expression": f"`{color_field}`"})
-        enc["color"] = {"fieldName": "color", "scale": {"type": "categorical"}, "displayName": color_field}
+        fields.append({"name": color_field, "expression": f"`{color_field}`"})
+        enc["color"] = {"fieldName": color_field, "scale": {"type": "categorical"}, "displayName": color_field}
 
     return {
         "name": wid,
@@ -250,17 +252,18 @@ def line_widget(dataset, x_field, y_field, title, color_field=None):
 
 def area_widget(dataset, x_field, y_field, title, color_field=None):
     wid = uid()
+    y_name = f"sum_{y_field}"
     fields = [
-        {"name": "x", "expression": f"`{x_field}`"},
-        {"name": "y", "expression": f"SUM(`{y_field}`)"},
+        {"name": x_field, "expression": f"`{x_field}`"},
+        {"name": y_name, "expression": f"SUM(`{y_field}`)"},
     ]
     enc = {
-        "x": {"fieldName": "x", "scale": {"type": "categorical"}, "displayName": x_field},
-        "y": {"fieldName": "y", "scale": {"type": "quantitative"}, "displayName": y_field},
+        "x": {"fieldName": x_field, "scale": {"type": "categorical"}, "displayName": x_field},
+        "y": {"fieldName": y_name, "scale": {"type": "quantitative"}, "displayName": y_field},
     }
     if color_field:
-        fields.append({"name": "color", "expression": f"`{color_field}`"})
-        enc["color"] = {"fieldName": "color", "scale": {"type": "categorical"}, "displayName": color_field}
+        fields.append({"name": color_field, "expression": f"`{color_field}`"})
+        enc["color"] = {"fieldName": color_field, "scale": {"type": "categorical"}, "displayName": color_field}
 
     return {
         "name": wid,
@@ -276,20 +279,21 @@ def area_widget(dataset, x_field, y_field, title, color_field=None):
 
 def pie_widget(dataset, angle_field, color_field, title):
     wid = uid()
+    angle_name = f"sum_{angle_field}"
     return {
         "name": wid,
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
             "fields": [
-                {"name": "angle", "expression": f"SUM(`{angle_field}`)"},
-                {"name": "color", "expression": f"`{color_field}`"},
+                {"name": angle_name, "expression": f"SUM(`{angle_field}`)"},
+                {"name": color_field, "expression": f"`{color_field}`"},
             ],
             "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "pie",
                  "encodings": {
-                     "angle": {"fieldName": "angle", "scale": {"type": "quantitative"}, "displayName": angle_field},
-                     "color": {"fieldName": "color", "scale": {"type": "categorical"}, "displayName": color_field},
+                     "angle": {"fieldName": angle_name, "scale": {"type": "quantitative"}, "displayName": angle_field},
+                     "color": {"fieldName": color_field, "scale": {"type": "categorical"}, "displayName": color_field},
                  },
                  "frame": {"showTitle": True, "title": title}},
     }
@@ -297,22 +301,23 @@ def pie_widget(dataset, angle_field, color_field, title):
 
 def heatmap_widget(dataset, x_field, y_field, color_field, title):
     wid = uid()
+    color_name = f"sum_{color_field}"
     return {
         "name": wid,
         "queries": [{"name": f"q_{wid}", "query": {
             "datasetName": dataset,
             "fields": [
-                {"name": "x", "expression": f"`{x_field}`"},
-                {"name": "y", "expression": f"`{y_field}`"},
-                {"name": "val", "expression": f"SUM(`{color_field}`)"},
+                {"name": x_field, "expression": f"`{x_field}`"},
+                {"name": y_field, "expression": f"`{y_field}`"},
+                {"name": color_name, "expression": f"SUM(`{color_field}`)"},
             ],
             "disaggregated": False,
         }}],
         "spec": {"version": 3, "widgetType": "heatmap",
                  "encodings": {
-                     "x": {"fieldName": "x", "scale": {"type": "categorical"}, "displayName": x_field},
-                     "y": {"fieldName": "y", "scale": {"type": "categorical"}, "displayName": y_field},
-                     "color": {"fieldName": "val", "scale": {"type": "quantitative"}, "displayName": color_field},
+                     "x": {"fieldName": x_field, "scale": {"type": "categorical"}, "displayName": x_field},
+                     "y": {"fieldName": y_field, "scale": {"type": "categorical"}, "displayName": y_field},
+                     "color": {"fieldName": color_name, "scale": {"type": "quantitative"}, "displayName": color_field},
                  },
                  "frame": {"showTitle": True, "title": title}},
     }
