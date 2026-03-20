@@ -230,6 +230,16 @@ try:
         except Exception:
             pass  # folder doesn't exist, skip
 
+    # Also clean up DAB bundle state directory
+    bundle_path = f"/Workspace/Users/{user_email}/.bundle/solvency-ii-qrt-demo-pnc"
+    try:
+        w.workspace.get_status(bundle_path)
+        print(f"Deleting DAB bundle state at {bundle_path} ...")
+        w.workspace.delete(bundle_path, recursive=True)
+        print("  Done — .bundle state deleted.")
+    except Exception:
+        pass
+
 except Exception as e:
     print(f"Could not delete workspace files: {e}")
 
