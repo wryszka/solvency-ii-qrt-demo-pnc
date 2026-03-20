@@ -20,7 +20,7 @@ set -euo pipefail
 # Defaults
 PROFILE="${DATABRICKS_PROFILE:-DEFAULT}"
 CATALOG=""
-SCHEMA="solvency2_qrt"
+SCHEMA="solvency2demo"
 WORKSPACE_DIR=""
 YEAR="2025"
 ENTITY="Bricksurance SE"

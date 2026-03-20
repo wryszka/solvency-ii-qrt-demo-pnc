@@ -24,7 +24,7 @@ except Exception:
 try:
     schema = dbutils.widgets.get("schema_name")
 except Exception:
-    schema = "solvency2_qrt"
+    schema = "solvency2demo"
 
 model_name = f"{catalog}.{schema}.standard_formula"
 full_table = f"{catalog}.{schema}.scr_results"

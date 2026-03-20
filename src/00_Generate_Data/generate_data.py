@@ -29,7 +29,7 @@
 # MAGIC
 # MAGIC **Parameters:**
 # MAGIC - `catalog_name` — Unity Catalog
-# MAGIC - `schema_name` — Schema (default: `solvency2_qrt`)
+# MAGIC - `schema_name` — Schema (default: `solvency2demo`)
 # MAGIC - `reporting_period` — e.g. `2025-Q1`, `2025-Q2`, etc.
 # MAGIC - `mode` — `append` (add quarter) or `full_reset` (drop everything, regenerate)
 
@@ -41,7 +41,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "main")
-dbutils.widgets.text("schema_name", "solvency2_qrt")
+dbutils.widgets.text("schema_name", "solvency2demo")
 dbutils.widgets.text("reporting_period", "2025-Q4")
 dbutils.widgets.text("mode", "append")  # append | full_reset
 dbutils.widgets.text("entity_name", "Bricksurance SE")

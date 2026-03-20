@@ -3,6 +3,6 @@ env:
   - name: CATALOG_NAME
     value: "lr_serverless_aws_us_catalog"
   - name: SCHEMA_NAME
-    value: "solvency2_qrt"
+    value: "solvency2demo"
   - name: WAREHOUSE_ID
     value: "c80acfa212bf1166"

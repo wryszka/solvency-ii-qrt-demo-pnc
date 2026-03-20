@@ -7,7 +7,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "main")
-dbutils.widgets.text("schema_name", "solvency2_qrt")
+dbutils.widgets.text("schema_name", "solvency2demo")
 
 catalog = dbutils.widgets.get("catalog_name")
 schema = dbutils.widgets.get("schema_name")

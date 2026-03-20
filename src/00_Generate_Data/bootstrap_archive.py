@@ -11,7 +11,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "main")
-dbutils.widgets.text("schema_name", "solvency2_qrt")
+dbutils.widgets.text("schema_name", "solvency2demo")
 dbutils.widgets.text("reporting_year", "2025")
 dbutils.widgets.text("entity_name", "Bricksurance SE")
 
