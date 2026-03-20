@@ -63,6 +63,10 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+      <p className="text-xs text-gray-400 italic">
+        Lakeview dashboards can be embedded directly in apps served from the workspace domain.
+        For portability, this demo links to the published dashboard in a new tab.
+      </p>
     </div>
   );
 }

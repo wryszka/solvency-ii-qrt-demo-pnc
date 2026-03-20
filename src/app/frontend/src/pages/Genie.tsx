@@ -78,6 +78,10 @@ export default function Genie() {
           ))}
         </div>
       </div>
+      <p className="text-xs text-gray-400 italic">
+        Genie spaces can be embedded directly in apps served from the workspace domain.
+        For portability, this demo links to the Genie room in a new tab.
+      </p>
     </div>
   );
 }
