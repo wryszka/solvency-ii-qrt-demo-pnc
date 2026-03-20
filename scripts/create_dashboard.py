@@ -175,7 +175,7 @@ def counter_widget(dataset, field, title):
     wid = uid()
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": [{"name": field, "expression": f"`{field}`"}],
             "disaggregated": True,
@@ -216,7 +216,7 @@ def bar_widget(dataset, x_field, y_field, title, color_field=None, stacked=False
 
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": fields,
             "disaggregated": False,
@@ -243,7 +243,7 @@ def line_widget(dataset, x_field, y_field, title, color_field=None):
 
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": fields,
             "disaggregated": False,
@@ -270,7 +270,7 @@ def area_widget(dataset, x_field, y_field, title, color_field=None):
 
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": fields,
             "disaggregated": False,
@@ -285,7 +285,7 @@ def pie_widget(dataset, angle_field, color_field, title):
     angle_name = f"sum_{angle_field}"
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": [
                 {"name": angle_name, "expression": f"SUM(`{angle_field}`)"},
@@ -307,7 +307,7 @@ def heatmap_widget(dataset, x_field, y_field, color_field, title):
     color_name = f"sum_{color_field}"
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": [
                 {"name": x_field, "expression": f"`{x_field}`"},
@@ -343,7 +343,7 @@ def table_widget(dataset, columns, title):
 
     return {
         "name": wid,
-        "queries": [{"name": f"q_{wid}", "query": {
+        "queries": [{"name": "main_query", "query": {
             "datasetName": dataset,
             "fields": fields,
             "disaggregated": True,
