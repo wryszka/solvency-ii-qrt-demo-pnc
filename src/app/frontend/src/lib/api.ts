@@ -142,6 +142,10 @@ export function reviewApproval(qrtId: string, status: 'approved' | 'rejected', c
   return postJson(`/api/approvals/${qrtId}/review`, { status, comments });
 }
 
+export function generateCertificate(qrtId: string): Promise<{ certificate_path: string; approval: Row }> {
+  return postJson(`/api/approvals/${qrtId}/certificate`);
+}
+
 export interface EmbedUrls {
   dashboard_url: string;
   genie_url: string;

@@ -2,12 +2,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Send,
-  ChevronLeft, ChevronRight, FileCheck, Clock,
+  ChevronLeft, ChevronRight, FileCheck, Clock, GitCompare, FlaskConical,
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import {
   fetchContent, fetchQuality, fetchComparison, fetchLineage, fetchApproval,
-  submitForReview, reviewApproval, downloadFile,
+  submitForReview, reviewApproval, generateCertificate, downloadFile,
+  fetchReconciliation, fetchModelVersions,
   formatEur, formatPct,
   type ContentResponse, type QualityCheck, type LineageStep, type ApprovalRecord, type Row,
 } from '../lib/api';
@@ -18,7 +19,7 @@ const QRT_TITLES: Record<string, { name: string; title: string }> = {
   s2501: { name: 'S.25.01', title: 'SCR Standard Formula' },
 };
 
-type Tab = 'content' | 'quality' | 'comparison' | 'lineage' | 'approval';
+type Tab = 'content' | 'quality' | 'comparison' | 'reconciliation' | 'lineage' | 'model' | 'approval';
 
 export default function ReportDetail() {
   const { qrtId } = useParams<{ qrtId: string }>();
@@ -38,7 +39,9 @@ export default function ReportDetail() {
     { id: 'content', label: 'Content' },
     { id: 'quality', label: 'Data Quality' },
     { id: 'comparison', label: 'Period Comparison' },
+    { id: 'reconciliation', label: 'Reconciliation' },
     { id: 'lineage', label: 'Lineage' },
+    ...(qrtId === 's2501' ? [{ id: 'model' as Tab, label: 'Model Governance' }] : []),
     { id: 'approval', label: 'Approve / Export' },
   ];
 
@@ -53,12 +56,12 @@ export default function ReportDetail() {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 border-b border-gray-200">
+      <div className="flex items-center gap-1 border-b border-gray-200 overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === t.id
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -72,7 +75,9 @@ export default function ReportDetail() {
       {tab === 'content' && <ContentTab qrtId={qrtId} />}
       {tab === 'quality' && <QualityTab qrtId={qrtId} />}
       {tab === 'comparison' && <ComparisonTab qrtId={qrtId} />}
+      {tab === 'reconciliation' && <ReconciliationTab />}
       {tab === 'lineage' && <LineageTab qrtId={qrtId} />}
+      {tab === 'model' && qrtId === 's2501' && <ModelGovernanceTab />}
       {tab === 'approval' && <ApprovalTab qrtId={qrtId} />}
     </div>
   );
@@ -568,6 +573,9 @@ function ApprovalTab({ qrtId }: { qrtId: string }) {
         </div>
       </div>
 
+      {/* Certificate generation (only for approved) */}
+      {status === 'approved' && <CertificateSection qrtId={qrtId} />}
+
       {/* Submit action */}
       {(!approval || status === 'rejected' || status === 'none') && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -623,6 +631,251 @@ function ApprovalTab({ qrtId }: { qrtId: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══════ Certificate Section ═══════ */
+function CertificateSection({ qrtId }: { qrtId: string }) {
+  const [certPath, setCertPath] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setCertError(null);
+    try {
+      const result = await generateCertificate(qrtId);
+      setCertPath(result.certificate_path);
+    } catch (e: unknown) {
+      setCertError((e as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-3">Approval Certificate</h3>
+      <p className="text-sm text-gray-600 mb-4">
+        Generate a PDF certificate with approval details, data hash, and export path.
+        The certificate is stored in the regulatory exports volume.
+      </p>
+      {certError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 mb-4">{certError}</div>
+      )}
+      {certPath ? (
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <p className="text-xs font-medium text-blue-700 uppercase mb-1">Certificate Generated</p>
+          <p className="text-blue-800 font-mono text-xs break-all">{certPath}</p>
+        </div>
+      ) : (
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+        >
+          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck className="w-4 h-4" />}
+          Generate Certificate
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ═══════ Reconciliation Tab ═══════ */
+function ReconciliationTab() {
+  const [checks, setChecks] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReconciliation()
+      .then((r) => setChecks(r.data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Spinner />;
+  if (!checks.length) return <Empty msg="No reconciliation data available" />;
+
+  const allMatch = checks.every((c) => c.status === 'MATCH');
+
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-lg p-4 border ${allMatch ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+        <div className="flex items-center gap-2">
+          {allMatch ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <GitCompare className="w-5 h-5 text-amber-600" />}
+          <span className={`font-semibold ${allMatch ? 'text-green-800' : 'text-amber-800'}`}>
+            {allMatch ? 'All cross-QRT reconciliation checks passed' : `${checks.filter(c => c.status === 'MATCH').length}/${checks.length} checks passed`}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {checks.map((check, i) => {
+          const isMatch = check.status === 'MATCH';
+          return (
+            <div key={i} className={`bg-white rounded-lg border p-5 ${isMatch ? 'border-gray-200' : 'border-red-200 bg-red-50'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-gray-900">{check.source_qrt}</span>
+                  <span className="text-gray-300">&harr;</span>
+                  <span className="text-sm font-semibold text-gray-900">{check.target_qrt}</span>
+                </div>
+                <StatusBadge label={check.status} variant={isMatch ? 'success' : 'error'} />
+              </div>
+              <p className="text-sm text-gray-600 mb-3">{check.check_description}</p>
+              <div className="grid grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-xs text-gray-500 uppercase">Source Value</span>
+                  <div className="font-mono font-semibold text-gray-900">{formatEur(check.source_value)}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 uppercase">Target Value</span>
+                  <div className="font-mono font-semibold text-gray-900">{formatEur(check.target_value)}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 uppercase">Difference</span>
+                  <div className={`font-mono font-semibold ${isMatch ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatEur(check.difference)}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 uppercase">Tolerance</span>
+                  <div className="font-mono text-gray-600">{formatEur(check.tolerance)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ Model Governance Tab (S.25.01 only) ═══════ */
+function ModelGovernanceTab() {
+  const [versions, setVersions] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchModelVersions()
+      .then((r) => setVersions(r.data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Spinner />;
+  if (!versions.length) return <Empty msg="No model version data available" />;
+
+  const champion = versions.find((v) => v.alias === 'Champion');
+  const challenger = versions.find((v) => v.alias === 'Challenger');
+
+  const champScr = parseFloat(champion?.scr_result_eur || '0');
+  const challScr = parseFloat(challenger?.scr_result_eur || '0');
+  const diff = challScr - champScr;
+  const diffPct = champScr > 0 ? ((diff / champScr) * 100).toFixed(1) : '0.0';
+
+  return (
+    <div className="space-y-4">
+      {/* Model cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {champion && (
+          <div className="bg-white rounded-lg border-2 border-green-300 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-bold uppercase">Champion</div>
+              <span className="text-sm text-gray-500">v{champion.model_version} — {champion.calibration_year} Calibration</span>
+            </div>
+            <div className="mb-3">
+              <span className="text-xs text-gray-500 uppercase">SCR Result</span>
+              <div className="text-2xl font-bold text-gray-900">{formatEur(champion.scr_result_eur)}</div>
+            </div>
+            <p className="text-sm text-gray-600">{champion.description}</p>
+            <div className="mt-3 text-xs text-gray-400">
+              Registered by {champion.registered_by} on {String(champion.run_timestamp).split('T')[0]}
+            </div>
+          </div>
+        )}
+        {challenger && (
+          <div className="bg-white rounded-lg border-2 border-violet-300 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="px-2 py-0.5 bg-violet-100 text-violet-800 rounded text-xs font-bold uppercase">Challenger</div>
+              <span className="text-sm text-gray-500">v{challenger.model_version} — {challenger.calibration_year} Calibration</span>
+            </div>
+            <div className="mb-3">
+              <span className="text-xs text-gray-500 uppercase">SCR Result</span>
+              <div className="text-2xl font-bold text-gray-900">{formatEur(challenger.scr_result_eur)}</div>
+            </div>
+            <p className="text-sm text-gray-600">{challenger.description}</p>
+            <div className="mt-3 text-xs text-gray-400">
+              Registered by {challenger.registered_by} on {String(challenger.run_timestamp).split('T')[0]}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Impact analysis */}
+      {champion && challenger && (
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FlaskConical className="w-5 h-5 text-violet-500" />
+            <h3 className="font-semibold text-gray-900">Impact Analysis: Challenger vs Champion</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-6">
+            <div>
+              <span className="text-xs text-gray-500 uppercase">SCR Difference</span>
+              <div className={`text-xl font-bold ${diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {diff > 0 ? '+' : ''}{formatEur(diff)}
+              </div>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 uppercase">% Change</span>
+              <div className={`text-xl font-bold ${diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {diff > 0 ? '+' : ''}{diffPct}%
+              </div>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 uppercase">Key Changes in 2026</span>
+              <ul className="text-sm text-gray-600 mt-1 space-y-0.5">
+                <li>Market&harr;NL correlation: 0.25 &rarr; 0.30</li>
+                <li>Op risk factor: 3.0% &rarr; 3.5%</li>
+                <li>LAC_DT cap: 10% &rarr; 8%</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version history table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b bg-gray-50">
+          <h3 className="font-semibold text-gray-900 text-sm">Version History</h3>
+        </div>
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b bg-gray-50">
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Period</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Version</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Alias</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Calibration</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">SCR (EUR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {versions.map((v, i) => (
+              <tr key={i} className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                <td className="px-4 py-2 text-gray-800">{v.reporting_period}</td>
+                <td className="px-4 py-2 text-gray-800">v{v.model_version}</td>
+                <td className="px-4 py-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    v.alias === 'Champion' ? 'bg-green-100 text-green-800' : 'bg-violet-100 text-violet-800'
+                  }`}>{v.alias}</span>
+                </td>
+                <td className="px-4 py-2 text-gray-800">{v.calibration_year}</td>
+                <td className="px-4 py-2 text-right font-mono text-gray-800">{formatEur(v.scr_result_eur)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

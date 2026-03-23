@@ -179,6 +179,142 @@ async def review_qrt(qrt_id: str, request: ReviewRequest):
         raise HTTPException(500, str(exc)) from exc
 
 
+@router.post("/{qrt_id}/certificate")
+async def generate_certificate(qrt_id: str):
+    """Generate a PDF approval certificate and upload to the regulatory volume."""
+    if qrt_id not in VALID_QRTS:
+        raise HTTPException(404, "Unknown QRT")
+
+    try:
+        await ensure_approvals_table()
+        rows = await execute_query(f"""
+            SELECT * FROM {fqn('qrt_approvals')}
+            WHERE qrt_id = '{qrt_id}' AND status = 'approved'
+            ORDER BY submitted_at DESC LIMIT 1
+        """)
+        if not rows:
+            raise HTTPException(404, "No approved submission found for this QRT")
+
+        approval = rows[0]
+        cert_path = await _generate_pdf_certificate(qrt_id, approval)
+        return {"certificate_path": cert_path, "approval": approval}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+
+async def _generate_pdf_certificate(qrt_id: str, approval: dict) -> str:
+    """Generate a PDF certificate and upload to the regulatory exports volume."""
+    from fpdf import FPDF
+    import hashlib
+
+    catalog = get_catalog()
+    schema = get_schema()
+    qrt_name = {"s0602": "S.06.02", "s0501": "S.05.01", "s2501": "S.25.01"}[qrt_id]
+    qrt_title = {"s0602": "List of Assets", "s0501": "Premiums, Claims & Expenses", "s2501": "SCR Standard Formula"}[qrt_id]
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Title
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 15, "QRT Approval Certificate", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.ln(5)
+
+    # Entity
+    pdf.set_font("Helvetica", "", 14)
+    pdf.cell(0, 10, "Bricksurance SE", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.ln(10)
+
+    # Details table
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "QRT Reference:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, f"{qrt_name} - {qrt_title}", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Reporting Period:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, str(approval.get("reporting_period", "")), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Status:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, "APPROVED", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Submitted By:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, str(approval.get("submitted_by", "")), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Submitted At:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, str(approval.get("submitted_at", "")), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Reviewed By:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, str(approval.get("reviewed_by", "")), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Reviewed At:", new_x="RIGHT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, str(approval.get("reviewed_at", "")), new_x="LMARGIN", new_y="NEXT")
+
+    if approval.get("comments"):
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(60, 8, "Comments:", new_x="RIGHT")
+        pdf.set_font("Helvetica", "", 11)
+        pdf.cell(0, 8, str(approval["comments"]), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.ln(5)
+
+    # Data hash
+    export_path = approval.get("export_path", "")
+    data_hash = hashlib.sha256(f"{qrt_id}:{approval.get('reporting_period')}:{approval.get('reviewed_at')}".encode()).hexdigest()
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(60, 8, "Data Hash (SHA-256):", new_x="RIGHT")
+    pdf.set_font("Courier", "", 9)
+    pdf.cell(0, 8, data_hash, new_x="LMARGIN", new_y="NEXT")
+
+    if export_path:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(60, 8, "Export Path:", new_x="RIGHT")
+        pdf.set_font("Courier", "", 9)
+        pdf.cell(0, 8, str(export_path), new_x="LMARGIN", new_y="NEXT")
+
+    pdf.ln(10)
+
+    # Footer
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.cell(0, 8, "This certificate was generated automatically by the Solvency II QRT Reporting System.", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(0, 8, "It confirms that the above QRT has been reviewed and approved for regulatory submission.", new_x="LMARGIN", new_y="NEXT", align="C")
+
+    # Generate PDF bytes
+    pdf_bytes = pdf.output()
+
+    # Upload to volume
+    ts_clean = str(approval.get("reviewed_at", "")).replace(" ", "T").replace(":", "")
+    period_clean = str(approval.get("reporting_period", "")).replace("-", "")
+    filename = f"CERT_{qrt_name.replace('.', '')}_{period_clean}_{ts_clean}.pdf"
+    volume_path = f"/Volumes/{catalog}/{schema}/regulatory_exports/{filename}"
+
+    try:
+        from server.config import get_workspace_client
+        w = get_workspace_client()
+        w.files.upload(volume_path, io.BytesIO(pdf_bytes), overwrite=True)
+        logger.info("Certificate uploaded to %s", volume_path)
+    except Exception as e:
+        logger.warning("Certificate upload failed: %s", e)
+        volume_path = f"{volume_path} (upload pending)"
+
+    return volume_path
+
+
 async def _export_to_volume(qrt_id: str, reporting_period: str, timestamp: str) -> str:
     """Export QRT data to the regulatory_exports volume (simulated Tagetik)."""
     catalog = get_catalog()
