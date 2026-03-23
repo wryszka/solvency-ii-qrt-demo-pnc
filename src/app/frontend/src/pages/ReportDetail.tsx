@@ -8,7 +8,7 @@ import StatusBadge from '../components/StatusBadge';
 import {
   fetchContent, fetchQuality, fetchComparison, fetchLineage, fetchApproval,
   submitForReview, reviewApproval, generateCertificate, downloadFile,
-  fetchReconciliation, fetchModelVersions,
+  fetchReconciliation, fetchModelVersions, fetchTemplate,
   formatEur, formatPct,
   type ContentResponse, type QualityCheck, type LineageStep, type ApprovalRecord, type Row,
 } from '../lib/api';
@@ -19,7 +19,7 @@ const QRT_TITLES: Record<string, { name: string; title: string }> = {
   s2501: { name: 'S.25.01', title: 'SCR Standard Formula' },
 };
 
-type Tab = 'content' | 'quality' | 'comparison' | 'reconciliation' | 'lineage' | 'model' | 'approval';
+type Tab = 'content' | 'quality' | 'comparison' | 'reconciliation' | 'template' | 'lineage' | 'model' | 'approval';
 
 export default function ReportDetail() {
   const { qrtId } = useParams<{ qrtId: string }>();
@@ -40,6 +40,7 @@ export default function ReportDetail() {
     { id: 'quality', label: 'Data Quality' },
     { id: 'comparison', label: 'Period Comparison' },
     { id: 'reconciliation', label: 'Reconciliation' },
+    { id: 'template', label: 'EIOPA Template' },
     { id: 'lineage', label: 'Lineage' },
     ...(qrtId === 's2501' ? [{ id: 'model' as Tab, label: 'Model Governance' }] : []),
     { id: 'approval', label: 'Approve / Export' },
@@ -76,6 +77,7 @@ export default function ReportDetail() {
       {tab === 'quality' && <QualityTab qrtId={qrtId} />}
       {tab === 'comparison' && <ComparisonTab qrtId={qrtId} />}
       {tab === 'reconciliation' && <ReconciliationTab />}
+      {tab === 'template' && <TemplateTab qrtId={qrtId} />}
       {tab === 'lineage' && <LineageTab qrtId={qrtId} />}
       {tab === 'model' && qrtId === 's2501' && <ModelGovernanceTab />}
       {tab === 'approval' && <ApprovalTab qrtId={qrtId} />}
@@ -679,6 +681,226 @@ function CertificateSection({ qrtId }: { qrtId: string }) {
           Generate Certificate
         </button>
       )}
+    </div>
+  );
+}
+
+/* ═══════ EIOPA Template Tab ═══════ */
+function TemplateTab({ qrtId }: { qrtId: string }) {
+  const [template, setTemplate] = useState<Row | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTemplate(qrtId)
+      .then(setTemplate)
+      .finally(() => setLoading(false));
+  }, [qrtId]);
+
+  if (loading) return <Spinner />;
+  if (!template) return <Empty msg="No template data available" />;
+
+  return (
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">{template.qrt} — {template.title}</h3>
+          <p className="text-sm text-gray-500">EIOPA regulatory template format | Period: {template.period || 'Latest'}</p>
+        </div>
+        <a
+          href={`/api/reports/${qrtId}/template-pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50"
+        >
+          <Download className="w-4 h-4" /> Download PDF
+        </a>
+      </div>
+
+      {/* Render based on format */}
+      {template.format === 'crosstab' && <S0501Template data={template.data || []} />}
+      {template.format === 'waterfall' && <S2501Template data={template.data || []} summary={template.summary} />}
+      {template.format === 'summary' && <S0602Template data={template.data || []} totals={template.totals} />}
+    </div>
+  );
+}
+
+function S0501Template({ data }: { data: Row[] }) {
+  const lobSet = new Map<string, boolean>();
+  const rowMap = new Map<string, Map<string, number>>();
+  const rowLabels = new Map<string, string>();
+
+  for (const r of data) {
+    const lob = r.lob_name;
+    const rid = r.template_row_id;
+    lobSet.set(lob, true);
+    rowLabels.set(rid, r.template_row_label);
+    if (!rowMap.has(rid)) rowMap.set(rid, new Map());
+    rowMap.get(rid)!.set(lob, parseFloat(r.amount_eur));
+  }
+
+  const lobs = [...lobSet.keys()].sort((a, b) => a === 'Total' ? 1 : b === 'Total' ? -1 : a.localeCompare(b));
+  const sectionBreaks = new Set(['R0210', 'R0310', 'R0410', 'R0550']);
+
+  return (
+    <div className="bg-white rounded-lg border-2 border-gray-300 overflow-x-auto">
+      <div className="bg-blue-900 text-white px-4 py-2 text-sm font-bold">
+        S.05.01.02 — Non-Life — Premiums, claims and expenses by line of business
+      </div>
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="bg-blue-50 border-b-2 border-blue-200">
+            <th className="px-2 py-1.5 text-left font-bold text-blue-900 w-10">Row</th>
+            <th className="px-2 py-1.5 text-left font-bold text-blue-900 min-w-[180px]">Description</th>
+            {lobs.map((l) => (
+              <th key={l} className={`px-2 py-1.5 text-right font-bold text-blue-900 whitespace-nowrap ${l === 'Total' ? 'bg-blue-100' : ''}`}>
+                {l.length > 15 ? l.substring(0, 15) + '...' : l}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {[...rowMap.entries()].map(([rid, values]) => {
+            const isNet = rid.startsWith('R02') || rid.startsWith('R03') || rid.startsWith('R04') || rid.startsWith('R05');
+            const isSection = sectionBreaks.has(rid);
+            return (
+              <tr key={rid} className={`border-b ${isSection ? 'border-t-2 border-gray-300' : 'border-gray-100'} ${isNet ? 'bg-gray-50 font-semibold' : ''}`}>
+                <td className="px-2 py-1 font-mono text-gray-500">{rid}</td>
+                <td className="px-2 py-1 text-gray-800">{rowLabels.get(rid)}</td>
+                {lobs.map((lob) => (
+                  <td key={lob} className={`px-2 py-1 text-right font-mono ${lob === 'Total' ? 'bg-blue-50/50 font-bold' : ''}`}>
+                    {values.has(lob) ? formatEur(values.get(lob)!) : ''}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function S2501Template({ data, summary }: { data: Row[]; summary?: Row }) {
+  const mainRows = data.filter((r) => !String(r.template_row_id).includes('.'));
+  const subRows = data.filter((r) => String(r.template_row_id).includes('.'));
+
+  return (
+    <div className="space-y-4">
+      {/* Main SCR breakdown */}
+      <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+        <div className="bg-blue-900 text-white px-4 py-2 text-sm font-bold">
+          S.25.01.01 — Solvency Capital Requirement — Standard Formula
+        </div>
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-blue-50 border-b-2 border-blue-200">
+              <th className="px-4 py-2 text-left font-bold text-blue-900 w-20">Row</th>
+              <th className="px-4 py-2 text-left font-bold text-blue-900">Component</th>
+              <th className="px-4 py-2 text-right font-bold text-blue-900 w-40">Amount (EUR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mainRows.map((r) => {
+              const isKey = r.template_row_id === 'R0100' || r.template_row_id === 'R0200';
+              return (
+                <tr key={r.template_row_id} className={`border-b ${isKey ? 'bg-blue-50 font-bold border-blue-200' : 'border-gray-100'}`}>
+                  <td className="px-4 py-2 font-mono text-gray-500">{r.template_row_id}</td>
+                  <td className="px-4 py-2 text-gray-900">{r.template_row_label}</td>
+                  <td className={`px-4 py-2 text-right font-mono ${isKey ? 'text-blue-900' : 'text-gray-800'}`}>
+                    {formatEur(r.amount_eur)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Sub-module detail */}
+      {subRows.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-2 bg-gray-50 border-b text-sm font-semibold text-gray-700">
+            Sub-module Detail
+          </div>
+          <table className="min-w-full text-sm">
+            <tbody>
+              {subRows.map((r) => (
+                <tr key={r.template_row_id} className="border-b border-gray-100">
+                  <td className="px-4 py-1.5 font-mono text-gray-400 w-20">{r.template_row_id}</td>
+                  <td className="px-4 py-1.5 text-gray-700">{r.template_row_label}</td>
+                  <td className="px-4 py-1.5 text-right font-mono text-gray-700 w-40">{formatEur(r.amount_eur)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Solvency position */}
+      {summary && (
+        <div className="bg-white rounded-lg border-2 border-green-300 p-5">
+          <h4 className="font-bold text-gray-900 mb-3">Solvency Position</h4>
+          <div className="grid grid-cols-3 gap-6">
+            <div>
+              <span className="text-xs text-gray-500 uppercase">Eligible Own Funds</span>
+              <div className="text-xl font-bold text-gray-900">{formatEur(summary.eligible_own_funds_eur)}</div>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 uppercase">SCR</span>
+              <div className="text-xl font-bold text-gray-900">{formatEur(summary.scr_eur)}</div>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 uppercase">Solvency Ratio</span>
+              <div className="text-xl font-bold text-green-700">{summary.solvency_ratio_pct}%</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function S0602Template({ data, totals }: { data: Row[]; totals?: Row }) {
+  return (
+    <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+      <div className="bg-blue-900 text-white px-4 py-2 text-sm font-bold">
+        S.06.02.01 — List of Assets — Summary by CIC Category
+      </div>
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="bg-blue-50 border-b-2 border-blue-200">
+            <th className="px-4 py-2 text-left font-bold text-blue-900">CIC Category</th>
+            <th className="px-4 py-2 text-right font-bold text-blue-900">Assets</th>
+            <th className="px-4 py-2 text-right font-bold text-blue-900">Total SII (EUR)</th>
+            <th className="px-4 py-2 text-right font-bold text-blue-900">% of Total</th>
+            <th className="px-4 py-2 text-right font-bold text-blue-900">Inv. Grade</th>
+            <th className="px-4 py-2 text-right font-bold text-blue-900">Avg Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((r, i) => (
+            <tr key={i} className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+              <td className="px-4 py-2 text-gray-900 font-medium">{r.cic_category_name}</td>
+              <td className="px-4 py-2 text-right font-mono">{parseInt(r.asset_count || '0').toLocaleString()}</td>
+              <td className="px-4 py-2 text-right font-mono">{formatEur(r.total_sii_amount)}</td>
+              <td className="px-4 py-2 text-right font-mono">{r.pct_of_total_sii}%</td>
+              <td className="px-4 py-2 text-right font-mono">{r.investment_grade_count || ''}</td>
+              <td className="px-4 py-2 text-right font-mono">{r.avg_duration ? parseFloat(r.avg_duration).toFixed(1) : ''}</td>
+            </tr>
+          ))}
+          {totals && (
+            <tr className="border-t-2 border-gray-300 bg-blue-50 font-bold">
+              <td className="px-4 py-2 text-blue-900">TOTAL</td>
+              <td className="px-4 py-2 text-right font-mono text-blue-900">{parseInt(totals.cnt || '0').toLocaleString()}</td>
+              <td className="px-4 py-2 text-right font-mono text-blue-900">{formatEur(totals.total_sii)}</td>
+              <td className="px-4 py-2 text-right font-mono text-blue-900">100.0%</td>
+              <td className="px-4 py-2"></td>
+              <td className="px-4 py-2"></td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
