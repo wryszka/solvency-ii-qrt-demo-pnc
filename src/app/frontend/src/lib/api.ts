@@ -152,3 +152,29 @@ export interface EmbedUrls {
 export function fetchEmbeds(): Promise<EmbedUrls> {
   return fetchJson('/api/embeds');
 }
+
+// ─── Monitoring API ────────────────────────────────────────────
+
+export function fetchSlaStatus(period?: string): Promise<{ data: Row[] }> {
+  const qs = period ? `?period=${period}` : '';
+  return fetchJson(`/api/monitoring/sla-status${qs}`);
+}
+
+export function fetchDqSummary(period?: string): Promise<{ data: Row[]; aggregate: Row | null }> {
+  const qs = period ? `?period=${period}` : '';
+  return fetchJson(`/api/monitoring/dq-summary${qs}`);
+}
+
+export function fetchDqTrends(): Promise<{ data: Row[] }> {
+  return fetchJson('/api/monitoring/dq-trends');
+}
+
+export function fetchReconciliation(period?: string): Promise<{ data: Row[] }> {
+  const qs = period ? `?period=${period}` : '';
+  return fetchJson(`/api/monitoring/reconciliation${qs}`);
+}
+
+export function fetchModelVersions(period?: string): Promise<{ data: Row[] }> {
+  const qs = period ? `?period=${period}` : '';
+  return fetchJson(`/api/monitoring/model-versions${qs}`);
+}

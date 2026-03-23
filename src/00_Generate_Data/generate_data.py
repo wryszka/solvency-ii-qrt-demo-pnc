@@ -1135,6 +1135,313 @@ write_quarterly_table(pd.DataFrame(bs_rows), "balance_sheet",
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 14. Pipeline SLA Status (for Control Tower)
+# MAGIC
+# MAGIC Tracks when each data feed arrived relative to SLA deadlines.
+# MAGIC Simulates realistic arrival patterns — most on time, some late.
+
+# COMMAND ----------
+
+sla_deadline_day = 15  # 15th of month after quarter-end
+sla_month = (rp_quarter * 3) % 12 + 1
+sla_year = rp_year if sla_month > 1 else rp_year + 1
+sla_deadline = datetime(sla_year, sla_month, sla_deadline_day, 18, 0, 0)
+
+FEED_CONFIG = [
+    {"feed": "assets", "source": "Investment Platform (Simcorp)", "typical_days_early": 5},
+    {"feed": "premiums", "source": "Policy Admin System (Guidewire)", "typical_days_early": 3},
+    {"feed": "claims", "source": "Claims Management System", "typical_days_early": 4},
+    {"feed": "expenses", "source": "Finance / ERP (SAP)", "typical_days_early": 1},
+    {"feed": "risk_factors", "source": "Risk Engine (Igloo/RAFM)", "typical_days_early": 2},
+    {"feed": "reinsurance", "source": "RI Admin (Solvara)", "typical_days_early": 10},
+]
+
+sla_rows = []
+for fc in FEED_CONFIG:
+    days_early = fc["typical_days_early"] + int(rng.uniform(-3, 3))
+    arrival = sla_deadline - timedelta(days=days_early)
+
+    # Make expenses late in Q4 for demo narrative
+    if fc["feed"] == "expenses" and rp_quarter == 4:
+        arrival = sla_deadline + timedelta(days=2, hours=int(rng.uniform(1, 8)))
+
+    status = "on_time" if arrival <= sla_deadline else "late"
+
+    # Count rows from the actual table
+    try:
+        feed_count = spark.table(f"{catalog}.{schema}.{fc['feed']}").filter(
+            f"reporting_period = '{reporting_period}'"
+        ).count()
+    except Exception:
+        feed_count = int(rng.uniform(1000, 50000))
+
+    dq_pass = round(rng.uniform(0.985, 1.0), 4)
+    if fc["feed"] == "expenses" and rp_quarter == 4:
+        dq_pass = round(rng.uniform(0.965, 0.985), 4)  # slightly worse for late data
+
+    sla_rows.append({
+        "reporting_period": reporting_period,
+        "feed_name": fc["feed"],
+        "source_system": fc["source"],
+        "sla_deadline": sla_deadline,
+        "actual_arrival": arrival,
+        "row_count": feed_count,
+        "status": status,
+        "dq_pass_rate": dq_pass,
+        "notes": f"Arrived {abs(days_early)} days {'early' if arrival <= sla_deadline else 'late'}",
+    })
+
+write_quarterly_table(pd.DataFrame(sla_rows), "pipeline_sla_status",
+            "Pipeline SLA tracking — feed arrival times vs deadlines for Control Tower")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 15. DQ Expectation Results (for DQ Dashboard)
+# MAGIC
+# MAGIC Synthetic DLT expectation results mirroring what the pipeline produces.
+
+# COMMAND ----------
+
+DQ_EXPECTATIONS = [
+    # S.06.02 pipeline
+    {"pipeline": "S.06.02 List of Assets", "table": "assets_enriched",
+     "expectation": "asset_id_not_null", "action": "DROP ROW", "base_total": 5000},
+    {"pipeline": "S.06.02 List of Assets", "table": "assets_enriched",
+     "expectation": "sii_value_positive", "action": "FAIL UPDATE", "base_total": 5000},
+    {"pipeline": "S.06.02 List of Assets", "table": "assets_enriched",
+     "expectation": "cic_code_valid", "action": "DROP ROW", "base_total": 5000},
+    {"pipeline": "S.06.02 List of Assets", "table": "assets_enriched",
+     "expectation": "currency_not_null", "action": "DROP ROW", "base_total": 5000},
+    {"pipeline": "S.06.02 List of Assets", "table": "s0602_list_of_assets",
+     "expectation": "c0040_asset_id_present", "action": "DROP ROW", "base_total": 5000},
+    {"pipeline": "S.06.02 List of Assets", "table": "s0602_list_of_assets",
+     "expectation": "c0170_sii_positive", "action": "FAIL UPDATE", "base_total": 5000},
+    # S.05.01 pipeline
+    {"pipeline": "S.05.01 Premiums Claims Expenses", "table": "premiums_by_lob",
+     "expectation": "gross_written_positive", "action": "DROP ROW", "base_total": 7},
+    {"pipeline": "S.05.01 Premiums Claims Expenses", "table": "premiums_by_lob",
+     "expectation": "net_equals_gross_minus_ri", "action": "WARN", "base_total": 7},
+    {"pipeline": "S.05.01 Premiums Claims Expenses", "table": "claims_by_lob",
+     "expectation": "gross_incurred_positive", "action": "DROP ROW", "base_total": 7},
+    {"pipeline": "S.05.01 Premiums Claims Expenses", "table": "s0501_summary",
+     "expectation": "combined_ratio_realistic", "action": "DROP ROW", "base_total": 7},
+    # S.25.01 pipeline
+    {"pipeline": "S.25.01 SCR Template", "table": "s2501_scr_breakdown",
+     "expectation": "row_id_present", "action": "DROP ROW", "base_total": 17},
+    {"pipeline": "S.25.01 SCR Template", "table": "s2501_scr_breakdown",
+     "expectation": "amount_not_null", "action": "DROP ROW", "base_total": 17},
+    {"pipeline": "S.25.01 SCR Template", "table": "s2501_summary",
+     "expectation": "solvency_ratio_positive", "action": "FAIL UPDATE", "base_total": 1},
+    {"pipeline": "S.25.01 SCR Template", "table": "s2501_summary",
+     "expectation": "scr_positive", "action": "FAIL UPDATE", "base_total": 1},
+]
+
+dq_rows = []
+for exp in DQ_EXPECTATIONS:
+    total = exp["base_total"]
+    # Most expectations pass perfectly; a few have small failure counts
+    if rng.random() < 0.3:  # 30% of checks have some failures
+        failing = int(rng.uniform(1, max(2, total * 0.005)))
+    else:
+        failing = 0
+    # Quality improves over time
+    if rp_quarter > 1 and failing > 0:
+        failing = max(0, failing - rp_quarter + 1)
+
+    passing = total - failing
+    dq_rows.append({
+        "reporting_period": reporting_period,
+        "pipeline_name": exp["pipeline"],
+        "table_name": exp["table"],
+        "expectation_name": exp["expectation"],
+        "total_records": total,
+        "passing_records": passing,
+        "failing_records": failing,
+        "pass_rate": round(passing / total, 4) if total > 0 else 1.0,
+        "action": exp["action"],
+        "evaluated_at": sla_deadline - timedelta(hours=int(rng.uniform(1, 48))),
+    })
+
+write_quarterly_table(pd.DataFrame(dq_rows), "dq_expectation_results",
+            "DQ expectation results — pass/fail rates from DLT pipeline expectations")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 16. Cross-QRT Reconciliation (for Reconciliation Tab)
+
+# COMMAND ----------
+
+recon_rows = []
+
+# Check 1: Total SII assets (S.06.02) vs balance sheet
+try:
+    s0602_total = float(spark.sql(f"""
+        SELECT SUM(CAST(C0170_Total_Solvency_II_Amount AS DOUBLE))
+        FROM {catalog}.{schema}.s0602_list_of_assets
+        WHERE reporting_period = '{reporting_period}'
+    """).first()[0] or 0)
+except Exception:
+    s0602_total = TOTAL_ASSETS_M * 1e6
+
+try:
+    bs_total = float(spark.sql(f"""
+        SELECT CAST(amount_eur AS DOUBLE)
+        FROM {catalog}.{schema}.balance_sheet
+        WHERE item = 'total_assets' AND reporting_period = '{reporting_period}'
+    """).first()[0] or 0)
+except Exception:
+    bs_total = s0602_total * rng.uniform(0.98, 1.02)
+
+diff = abs(s0602_total - bs_total)
+recon_rows.append({
+    "reporting_period": reporting_period,
+    "check_name": "total_assets_s0602_vs_balance_sheet",
+    "check_description": "Total SII assets from S.06.02 should match balance sheet total assets",
+    "source_qrt": "S.06.02",
+    "target_qrt": "Balance Sheet",
+    "source_value": round(s0602_total, 2),
+    "target_value": round(bs_total, 2),
+    "difference": round(diff, 2),
+    "tolerance": round(bs_total * 0.02, 2),
+    "status": "MATCH" if diff < bs_total * 0.02 else "MISMATCH",
+})
+
+# Check 2: GWP in S.05.01 vs sum of premium transactions
+try:
+    s0501_gwp = float(spark.sql(f"""
+        SELECT SUM(CAST(amount_eur AS DOUBLE))
+        FROM {catalog}.{schema}.s0501_premiums_claims_expenses
+        WHERE template_row_id = 'R0110' AND lob_code = 0 AND reporting_period = '{reporting_period}'
+    """).first()[0] or 0)
+except Exception:
+    s0501_gwp = quarterly_gwp
+
+try:
+    prem_gwp = float(spark.sql(f"""
+        SELECT SUM(gross_written_premium)
+        FROM {catalog}.{schema}.premiums
+        WHERE reporting_period = '{reporting_period}'
+    """).first()[0] or 0)
+except Exception:
+    prem_gwp = s0501_gwp * rng.uniform(0.99, 1.01)
+
+diff2 = abs(s0501_gwp - prem_gwp)
+recon_rows.append({
+    "reporting_period": reporting_period,
+    "check_name": "gwp_s0501_vs_premiums",
+    "check_description": "Gross written premium in S.05.01 Total should match sum of premium transactions",
+    "source_qrt": "S.05.01",
+    "target_qrt": "Premiums (Bronze)",
+    "source_value": round(s0501_gwp, 2),
+    "target_value": round(prem_gwp, 2),
+    "difference": round(diff2, 2),
+    "tolerance": round(prem_gwp * 0.01, 2),
+    "status": "MATCH" if diff2 < prem_gwp * 0.01 else "MISMATCH",
+})
+
+# Check 3: SCR < Eligible Own Funds (solvency OK)
+try:
+    solv = spark.sql(f"""
+        SELECT scr_eur, eligible_own_funds_eur
+        FROM {catalog}.{schema}.s2501_summary
+        WHERE reporting_period = '{reporting_period}'
+    """).first()
+    scr_val = float(solv[0] or 0)
+    eof_val = float(solv[1] or 0)
+except Exception:
+    scr_val = TARGET_SCR_M * 1e6
+    eof_val = TARGET_OWN_FUNDS_M * 1e6
+
+recon_rows.append({
+    "reporting_period": reporting_period,
+    "check_name": "scr_vs_own_funds",
+    "check_description": "Eligible own funds must exceed SCR for solvency compliance",
+    "source_qrt": "S.25.01",
+    "target_qrt": "Own Funds",
+    "source_value": round(scr_val, 2),
+    "target_value": round(eof_val, 2),
+    "difference": round(eof_val - scr_val, 2),
+    "tolerance": 0,
+    "status": "MATCH" if eof_val > scr_val else "MISMATCH",
+})
+
+# Check 4: Number of assets in S.06.02 vs raw assets table
+try:
+    qrt_count = int(spark.sql(f"""
+        SELECT COUNT(*) FROM {catalog}.{schema}.s0602_list_of_assets
+        WHERE reporting_period = '{reporting_period}'
+    """).first()[0] or 0)
+except Exception:
+    qrt_count = N_ASSETS
+
+recon_rows.append({
+    "reporting_period": reporting_period,
+    "check_name": "asset_count_s0602_vs_raw",
+    "check_description": "Asset count in S.06.02 should match raw assets (minus DQ drops)",
+    "source_qrt": "S.06.02",
+    "target_qrt": "Assets (Bronze)",
+    "source_value": float(qrt_count),
+    "target_value": float(N_ASSETS),
+    "difference": float(abs(qrt_count - N_ASSETS)),
+    "tolerance": 10.0,
+    "status": "MATCH" if abs(qrt_count - N_ASSETS) <= 10 else "WITHIN_TOLERANCE",
+})
+
+write_quarterly_table(pd.DataFrame(recon_rows), "cross_qrt_reconciliation",
+            "Cross-QRT reconciliation checks — consistency validation between QRTs")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 17. Model Registry Log (for Model Governance Tab)
+
+# COMMAND ----------
+
+model_rows = []
+
+# Champion (v1, 2025 calibration) — used for all quarters
+try:
+    champ_scr = float(spark.sql(f"""
+        SELECT amount_eur FROM {catalog}.{schema}.scr_results
+        WHERE component = 'SCR' AND reporting_period = '{reporting_period}'
+    """).first()[0] or 0)
+except Exception:
+    champ_scr = TARGET_SCR_M * 1e6 * growth
+
+model_rows.append({
+    "reporting_period": reporting_period,
+    "model_name": "standard_formula",
+    "model_version": 1,
+    "alias": "Champion",
+    "calibration_year": 2025,
+    "scr_result_eur": round(champ_scr, 2),
+    "run_timestamp": sla_deadline - timedelta(days=3),
+    "registered_by": "laurence.ryszka@databricks.com",
+    "description": "EIOPA 2025 Standard Formula — production calibration",
+})
+
+# Challenger (v2, 2026 calibration) — shows what-if
+challenger_scr = champ_scr * rng.uniform(1.02, 1.06)  # slightly higher due to tighter correlations
+model_rows.append({
+    "reporting_period": reporting_period,
+    "model_name": "standard_formula",
+    "model_version": 2,
+    "alias": "Challenger",
+    "calibration_year": 2026,
+    "scr_result_eur": round(challenger_scr, 2),
+    "run_timestamp": sla_deadline - timedelta(days=2),
+    "registered_by": "laurence.ryszka@databricks.com",
+    "description": "EIOPA 2026 Updated Calibration — tighter market/NL correlation, higher op risk",
+})
+
+write_quarterly_table(pd.DataFrame(model_rows), "model_registry_log",
+            "Model version usage log — Champion vs Challenger SCR results per quarter")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Summary
 
 # COMMAND ----------
@@ -1151,6 +1458,8 @@ tables = [
     "counterparties", "assets", "policies", "premiums", "claims", "expenses",
     "reinsurance", "claims_triangles", "risk_factors", "scr_parameters",
     "volume_measures", "exposures", "igloo_results", "own_funds", "balance_sheet",
+    "pipeline_sla_status", "dq_expectation_results", "cross_qrt_reconciliation",
+    "model_registry_log",
 ]
 
 for t in tables:

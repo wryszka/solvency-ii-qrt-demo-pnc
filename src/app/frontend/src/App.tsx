@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Building2, FileText, BarChart3, MessageCircle } from 'lucide-react';
+import { Building2, FileText, BarChart3, MessageCircle, Activity, ShieldCheck } from 'lucide-react';
+import Monitor from './pages/Monitor';
 import ReportsList from './pages/ReportsList';
 import ReportDetail from './pages/ReportDetail';
+import DataQuality from './pages/DataQuality';
 import Dashboard from './pages/Dashboard';
 import Genie from './pages/Genie';
 
@@ -34,7 +36,9 @@ function Nav() {
             </div>
           </Link>
           <nav className="flex items-center gap-1 ml-4">
+            <NavLink to="/monitor" icon={Activity} label="Monitor" />
             <NavLink to="/" icon={FileText} label="Reports" />
+            <NavLink to="/data-quality" icon={ShieldCheck} label="Data Quality" />
             <NavLink to="/dashboard" icon={BarChart3} label="Dashboard" />
             <NavLink to="/genie" icon={MessageCircle} label="Ask Genie" />
           </nav>
@@ -56,7 +60,9 @@ export default function App() {
         <main>
           <Routes>
             <Route path="/" element={<ReportsList />} />
+            <Route path="/monitor" element={<Monitor />} />
             <Route path="/report/:qrtId" element={<ReportDetail />} />
+            <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/genie" element={<Genie />} />
           </Routes>
