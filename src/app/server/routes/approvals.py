@@ -14,12 +14,13 @@ from server.sql import execute_query
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 
-VALID_QRTS = {"s0602", "s0501", "s2501"}
+VALID_QRTS = {"s0602", "s0501", "s2501", "s2606"}
 
 QRT_EXPORT_TABLES = {
     "s0602": "s0602_list_of_assets",
     "s0501": "s0501_premiums_claims_expenses",
     "s2501": "s2501_scr_breakdown",
+    "s2606": "s2606_nl_uw_risk",
 }
 
 

@@ -397,6 +397,12 @@ async def get_content(
             )
             return {"data": rows}
 
+        elif qrt_id == "s2606":
+            rows = await execute_query(
+                f"SELECT * FROM {fqn(defn['table'])} {where} ORDER BY template_row_id"
+            )
+            return {"data": rows}
+
     except Exception as exc:
         logger.exception("Failed to fetch %s content", qrt_id)
         raise HTTPException(500, str(exc)) from exc

@@ -438,9 +438,11 @@ function LineageTab({ qrtId }: { qrtId: string }) {
   if (loading) return <Spinner />;
 
   // Group steps by phase
-  const phases = ['Ingestion', 'Transformation', 'Confirmation', 'Export'];
+  const phases = ['Ingestion', 'Preparation', 'Stochastic', 'Transformation', 'Confirmation', 'Export'];
   const phaseConfig: Record<string, { color: string; bg: string; border: string; icon: string }> = {
     Ingestion: { color: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-300', icon: 'Download' },
+    Preparation: { color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-300', icon: 'Package' },
+    Stochastic: { color: 'text-pink-700', bg: 'bg-pink-50', border: 'border-pink-300', icon: 'Zap' },
     Transformation: { color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-300', icon: 'Wrench' },
     Confirmation: { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-300', icon: 'CheckSquare' },
     Export: { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-300', icon: 'FileOutput' },

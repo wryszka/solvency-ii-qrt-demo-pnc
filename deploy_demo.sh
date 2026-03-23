@@ -74,6 +74,7 @@ databricks workspace mkdirs "$WORKSPACE_DIR/00_Generate_Data" --profile "$PROFIL
 databricks workspace mkdirs "$WORKSPACE_DIR/01_QRT_S0602_Assets" --profile "$PROFILE"
 databricks workspace mkdirs "$WORKSPACE_DIR/02_QRT_S0501_PnL" --profile "$PROFILE"
 databricks workspace mkdirs "$WORKSPACE_DIR/03_QRT_S2501_SCR" --profile "$PROFILE"
+databricks workspace mkdirs "$WORKSPACE_DIR/04_QRT_S2606_NL_Risk" --profile "$PROFILE"
 databricks workspace mkdirs "$WORKSPACE_DIR/04_App" --profile "$PROFILE"
 echo "   Done."
 
@@ -96,9 +97,11 @@ upload_notebook "$SRC_DIR/00_Generate_Data/bootstrap_archive.py" \
     "$WORKSPACE_DIR/00_Generate_Data/bootstrap_archive"
 upload_notebook "$SRC_DIR/00_Generate_Data/teardown.py" \
     "$WORKSPACE_DIR/00_Generate_Data/teardown"
+upload_notebook "$SRC_DIR/00_Generate_Data/full_teardown.py" \
+    "$WORKSPACE_DIR/00_Generate_Data/full_teardown"
 
-# QRT notebooks (will be created in later steps)
-for dir in 01_QRT_S0602_Assets 02_QRT_S0501_PnL 03_QRT_S2501_SCR; do
+# QRT notebooks
+for dir in 01_QRT_S0602_Assets 02_QRT_S0501_PnL 03_QRT_S2501_SCR 04_QRT_S2606_NL_Risk; do
     if [[ -d "$SRC_DIR/$dir" ]]; then
         for f in "$SRC_DIR/$dir"/*.py; do
             [[ -f "$f" ]] || continue
@@ -244,6 +247,9 @@ tables = sorted([
     'premiums_by_lob', 'claims_by_lob', 'expenses_by_lob',
     's0501_premiums_claims_expenses', 's0501_summary',
     's2501_scr_breakdown', 's2501_summary',
+    's2606_nl_uw_risk', 's2606_summary',
+    'cat_risk_by_lob', 'premium_reserve_risk',
+    'igloo_run_results', 'igloo_run_log',
     'claims_triangles', 'volume_measures',
 ])
 print(json.dumps({
