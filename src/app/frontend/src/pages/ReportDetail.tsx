@@ -436,35 +436,132 @@ function LineageTab({ qrtId }: { qrtId: string }) {
 
   if (loading) return <Spinner />;
 
+  // Group steps by phase
+  const phases = ['Ingestion', 'Transformation', 'Confirmation', 'Export'];
+  const phaseConfig: Record<string, { color: string; bg: string; border: string; icon: string }> = {
+    Ingestion: { color: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-300', icon: 'Download' },
+    Transformation: { color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-300', icon: 'Wrench' },
+    Confirmation: { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-300', icon: 'CheckSquare' },
+    Export: { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-300', icon: 'FileOutput' },
+  };
+
+  const grouped = phases
+    .map((phase) => ({ phase, steps: steps.filter((s) => s.phase === phase) }))
+    .filter((g) => g.steps.length > 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Phase overview bar */}
+      <div className="flex items-center gap-1">
+        {grouped.map((g, i) => {
+          const cfg = phaseConfig[g.phase];
+          return (
+            <div key={g.phase} className="flex items-center">
+              <div className={`px-3 py-1.5 rounded-full text-xs font-bold ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
+                {g.phase} ({g.steps.length})
+              </div>
+              {i < grouped.length - 1 && <div className="w-6 h-0.5 bg-gray-300 mx-1" />}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Phase sections */}
+      {grouped.map((g) => {
+        const cfg = phaseConfig[g.phase];
+        return (
+          <div key={g.phase}>
+            <div className={`px-4 py-2 rounded-t-lg border-b-2 ${cfg.bg} ${cfg.border}`}>
+              <h4 className={`text-sm font-bold uppercase tracking-wide ${cfg.color}`}>{g.phase}</h4>
+            </div>
+            <div className={`grid gap-3 p-3 bg-white rounded-b-lg border border-t-0 ${cfg.border} ${g.steps.length > 1 && g.phase !== 'Confirmation' ? 'sm:grid-cols-' + Math.min(g.steps.length, 3) : ''}`}
+                 style={g.steps.length > 1 && g.phase !== 'Confirmation' ? { gridTemplateColumns: `repeat(${Math.min(g.steps.length, 3)}, 1fr)` } : undefined}>
+              {g.steps.map((s) => (
+                <LineageCard key={s.step} step={s} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LineageCard({ step: s }: { step: LineageStep }) {
+  const [showSql, setShowSql] = useState(false);
+
   const layerColors: Record<string, string> = {
+    Bronze: 'bg-orange-100 text-orange-800',
     Silver: 'bg-blue-100 text-blue-800',
     Gold: 'bg-amber-100 text-amber-800',
     Model: 'bg-violet-100 text-violet-800',
+    Export: 'bg-green-100 text-green-800',
+  };
+
+  const actionColors: Record<string, string> = {
+    'DROP ROW': 'bg-red-100 text-red-700',
+    'FAIL UPDATE': 'bg-orange-100 text-orange-700',
+    'WARN': 'bg-yellow-100 text-yellow-700',
   };
 
   return (
-    <div className="space-y-3">
-      {steps.map((s, i) => (
-        <div key={i} className="flex items-start gap-4">
-          <div className="flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
-              {s.step}
-            </div>
-            {i < steps.length - 1 && <div className="w-0.5 h-8 bg-blue-200 mt-1" />}
-          </div>
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center gap-3 mb-1">
-              <span className="font-mono text-sm text-gray-500">{s.source}</span>
-              <span className="text-gray-300">&rarr;</span>
-              <span className="font-mono text-sm font-semibold text-gray-900">{s.target}</span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${layerColors[s.layer] || 'bg-gray-100 text-gray-700'}`}>
-                {s.layer}
+    <div className="border border-gray-200 rounded-lg p-4 space-y-2">
+      {/* Header */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+          s.layer === 'Bronze' ? 'bg-orange-500' :
+          s.layer === 'Silver' ? 'bg-blue-500' :
+          s.layer === 'Gold' ? 'bg-amber-500' :
+          s.layer === 'Model' ? 'bg-violet-500' : 'bg-green-500'
+        }`}>{s.step}</span>
+        <span className="font-mono text-xs text-gray-500">{s.source}</span>
+        <span className="text-gray-300">&rarr;</span>
+        <span className="font-mono text-xs font-semibold text-gray-900">{s.target}</span>
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${layerColors[s.layer] || 'bg-gray-100 text-gray-700'}`}>
+          {s.layer}
+        </span>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-gray-600 leading-relaxed">{s.description}</p>
+
+      {/* Row count hint */}
+      {s.row_count_hint && (
+        <div className="text-xs text-gray-400 font-mono">{s.row_count_hint}</div>
+      )}
+
+      {/* Expectations */}
+      {s.expectations && s.expectations.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-semibold text-gray-500 uppercase">DLT Expectations</div>
+          {s.expectations.map((e, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs">
+              <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+              <code className="text-gray-700 bg-gray-50 px-1 rounded">{e.rule}</code>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${actionColors[e.action] || 'bg-gray-100 text-gray-600'}`}>
+                {e.action}
               </span>
             </div>
-            <p className="text-sm text-gray-600">{s.description}</p>
-          </div>
+          ))}
         </div>
-      ))}
+      )}
+
+      {/* SQL snippet toggle */}
+      {s.sql_snippet && (
+        <div>
+          <button
+            onClick={() => setShowSql(!showSql)}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          >
+            {showSql ? 'Hide SQL' : 'Show SQL'}
+          </button>
+          {showSql && (
+            <pre className="mt-2 p-3 bg-gray-900 text-green-300 text-xs rounded-lg overflow-x-auto max-h-64 overflow-y-auto font-mono leading-relaxed">
+              {s.sql_snippet}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }

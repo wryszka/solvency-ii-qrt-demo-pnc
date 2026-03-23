@@ -79,12 +79,22 @@ export interface QualityCheck {
   severity: string;
 }
 
+export interface LineageExpectation {
+  name: string;
+  rule: string;
+  action: string;
+}
+
 export interface LineageStep {
   step: number;
+  phase: string;
   source: string;
   target: string;
   layer: string;
   description: string;
+  sql_snippet?: string | null;
+  expectations?: LineageExpectation[];
+  row_count_hint?: string;
 }
 
 export interface ApprovalRecord {
