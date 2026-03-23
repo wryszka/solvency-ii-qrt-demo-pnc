@@ -249,7 +249,7 @@ tables = sorted([
     's2501_scr_breakdown', 's2501_summary',
     's2606_nl_uw_risk', 's2606_summary',
     'cat_risk_by_lob', 'premium_reserve_risk',
-    'igloo_run_results', 'igloo_run_log',
+    'igloo_results', 'igloo_run_log',
     'claims_triangles', 'volume_measures',
 ])
 print(json.dumps({
@@ -266,7 +266,9 @@ print(json.dumps({
 }))
 ")
 
-GENIE_OUTPUT=$(echo "$GENIE_PAYLOAD" | databricks api post /api/2.0/genie/spaces --profile "$PROFILE" --json @- 2>&1)
+echo "$GENIE_PAYLOAD" > /tmp/genie_deploy_payload.json
+GENIE_OUTPUT=$(databricks api post /api/2.0/genie/spaces --profile "$PROFILE" --json @/tmp/genie_deploy_payload.json 2>&1)
+rm -f /tmp/genie_deploy_payload.json
 GENIE_ID=$(echo "$GENIE_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('space_id',''))" 2>/dev/null || echo "")
 if [[ -n "$GENIE_ID" ]]; then
     GENIE_TABLES=$(echo "$GENIE_OUTPUT" | python3 -c "import sys,json; ss=json.loads(json.load(sys.stdin).get('serialized_space','{}')); print(len(ss.get('data_sources',{}).get('tables',[])))" 2>/dev/null || echo "0")
