@@ -146,8 +146,9 @@ print(f"  Output file: {output_path}")
 # COMMAND ----------
 
 # Re-import from CSV to Delta (proving the round-trip through Volume)
+from pyspark.sql.functions import lit
 reimported = spark.read.csv(output_path, header=True, inferSchema=True)
-reimported = reimported.withColumn("igloo_run_id", spark.sql(f"SELECT '{run_id}'").first()[0])
+reimported = reimported.withColumn("igloo_run_id", lit(run_id))
 
 # Write to igloo_run_results
 reimported.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{catalog}.{schema}.igloo_run_results")
