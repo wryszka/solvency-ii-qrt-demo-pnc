@@ -17,6 +17,7 @@ const QRT_TITLES: Record<string, { name: string; title: string }> = {
   s0602: { name: 'S.06.02', title: 'List of Assets' },
   s0501: { name: 'S.05.01', title: 'Premiums, Claims & Expenses' },
   s2501: { name: 'S.25.01', title: 'SCR Standard Formula' },
+  s2606: { name: 'S.26.06', title: 'NL Underwriting Risk' },
 };
 
 type Tab = 'content' | 'quality' | 'comparison' | 'reconciliation' | 'template' | 'lineage' | 'model' | 'approval';

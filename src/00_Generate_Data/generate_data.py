@@ -95,6 +95,7 @@ spark.sql(f"USE SCHEMA {schema}")
 
 # Create volume for regulatory exports (used later by the app)
 spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{schema}.regulatory_exports")
+spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{schema}.igloo_exchange")
 
 print(f"Schema {catalog}.{schema} ready")
 

@@ -1,0 +1,60 @@
+# S.26.06 Non-Life Underwriting Risk — Igloo Stochastic + DLT Pipeline
+#
+# DAG (visible in Databricks Workflows):
+#
+#   exposures ──→ [Igloo 5.2.1] ──→ igloo_run_results ──→ cat_risk_by_lob ──╮
+#                 (stochastic)                                                ├──→ s2606_nl_uw_risk → s2606_summary
+#   volume_measures ──→ premium_reserve_risk ─────────────────────────────────╯    (EIOPA template)   (sign-off)
+#
+# Task 1: Runs the mock Igloo model (export exposures, import results)
+# Task 2: DLT pipeline computes silver risk charges and gold template
+
+resources:
+  pipelines:
+    s2606_nl_risk_pipeline:
+      name: "S.26.06 NL UW Risk Template"
+      catalog: ${var.catalog_name}
+      target: ${var.schema_name}
+      channel: CURRENT
+      serverless: true
+      libraries:
+        - notebook:
+            path: ../src/04_QRT_S2606_NL_Risk/silver_cat_risk_by_lob.sql
+        - notebook:
+            path: ../src/04_QRT_S2606_NL_Risk/silver_premium_reserve_risk.sql
+        - notebook:
+            path: ../src/04_QRT_S2606_NL_Risk/gold_s2606_nl_uw_risk.sql
+        - notebook:
+            path: ../src/04_QRT_S2606_NL_Risk/gold_s2606_summary.sql
+
+  jobs:
+    qrt_s2606:
+      name: "QRT S.26.06 — NL Underwriting Risk"
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+
+      tasks:
+        # Step 1: Run the Igloo stochastic model (mock)
+        - task_key: run_igloo
+          notebook_task:
+            notebook_path: ../src/04_QRT_S2606_NL_Risk/run_igloo_model.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+          environment_key: default
+
+        # Step 2: DLT pipeline (silver + gold)
+        - task_key: build_s2606
+          depends_on:
+            - task_key: run_igloo
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.s2606_nl_risk_pipeline.id}
+            full_refresh: true
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"

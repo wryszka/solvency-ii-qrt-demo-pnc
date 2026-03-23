@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, ChevronRight, Shield, BarChart3, Landmark } from 'lucide-react';
+import { Loader2, ChevronRight, Shield, BarChart3, Landmark, Flame } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { fetchReports, type ReportSummary } from '../lib/api';
 
@@ -8,12 +8,14 @@ const QRT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   s0602: Landmark,
   s0501: BarChart3,
   s2501: Shield,
+  s2606: Flame,
 };
 
 const QRT_COLORS: Record<string, string> = {
   s0602: 'border-l-blue-500',
   s0501: 'border-l-emerald-500',
   s2501: 'border-l-violet-500',
+  s2606: 'border-l-orange-500',
 };
 
 const STATUS_VARIANT: Record<string, 'success' | 'error' | 'warning' | 'neutral' | 'info'> = {

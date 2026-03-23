@@ -135,6 +135,7 @@ job_names = [
     "QRT S.06.02",
     "QRT S.05.01",
     "QRT S.25.01",
+    "QRT S.26.06",
     "Register Standard Formula Model",
 ]
 
@@ -142,6 +143,7 @@ pipeline_names = [
     "S.06.02 List of Assets",
     "S.05.01 Premiums, Claims & Expenses",
     "S.25.01 SCR Template",
+    "S.26.06 NL UW Risk Template",
 ]
 
 try:

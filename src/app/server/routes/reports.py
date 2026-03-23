@@ -183,6 +183,70 @@ QRT_DEFS = {
              "sql_snippet": None, "expectations": []},
         ],
     },
+    "s2606": {
+        "id": "s2606",
+        "name": "S.26.06",
+        "title": "NL Underwriting Risk",
+        "table": "s2606_nl_uw_risk",
+        "summary_table": "s2606_summary",
+        "pipeline": "S.26.06 NL UW Risk Template",
+        "lineage": [
+            {"step": 1, "phase": "Ingestion", "source": "Exposure Management System", "target": "exposures",
+             "layer": "Bronze", "description": "Exposure sets by peril and line of business -- total sum insured, deductibles, and limits. ~35 peril x LoB combinations per quarter",
+             "row_count_hint": "~35 exposure sets/quarter",
+             "sql_snippet": None, "expectations": []},
+            {"step": 2, "phase": "Ingestion", "source": "Actuarial Reserving", "target": "volume_measures",
+             "layer": "Bronze", "description": "Premium and reserve volume measures by LoB from the actuarial reserving process. Earned premium, written premium (next year), and best estimate claims/premium provisions",
+             "row_count_hint": "7 LoB rows/quarter",
+             "sql_snippet": None, "expectations": []},
+            {"step": 3, "phase": "Preparation", "source": "exposures", "target": "igloo_exchange/input_exposures.csv",
+             "layer": "Export", "description": "Export exposure data as CSV to Unity Catalog Volume. In production this file would be sent to the Igloo stochastic server via SFTP or API. The file contains: exposure_id, peril, LoB, TSI, deductible, limit",
+             "row_count_hint": "~35 rows exported to /Volumes/.../igloo_exchange/",
+             "sql_snippet": "# Export to Volume (Igloo input)\nexposures_df = spark.sql(\n  \"SELECT * FROM exposures\"\n  \" WHERE reporting_period = '2025-Q3'\"\n)\nexposures_df.toPandas().to_csv(\n  '/Volumes/.../igloo_exchange/'\n  'input_exposures_2025Q3.csv'\n)",
+             "expectations": []},
+            {"step": 4, "phase": "Stochastic", "source": "Igloo 5.2.1 (10K simulations)", "target": "igloo_run_results",
+             "layer": "Model", "description": "Igloo stochastic catastrophe model runs 10,000 Monte Carlo simulations across 7 perils. Produces VaR and TVaR at 6 return periods (1-in-10 to 1-in-500), gross and net of reinsurance. Results are imported from the exchange Volume back into Delta",
+             "row_count_hint": "~210 result rows (7 perils x 5 LoB x 6 return periods)",
+             "sql_snippet": "# Igloo stochastic engine (mock)\nprint('Running 10,000 simulations...')\ntime.sleep(5)  # Simulated run time\n\n# Import results from Volume\nresults = spark.read.csv(\n  '/Volumes/.../igloo_exchange/'\n  'output_results_2025Q3.csv'\n)\nresults.write.saveAsTable(\n  'igloo_run_results'\n)",
+             "expectations": []},
+            {"step": 5, "phase": "Transformation", "source": "igloo_run_results", "target": "cat_risk_by_lob",
+             "layer": "Silver", "description": "Filter Igloo output to the 1-in-200 return period (VaR 99.5%, the Solvency II regulatory standard). Aggregate net-of-reinsurance VaR across all perils per LoB. Validate that TVaR >= VaR (tail is heavier)",
+             "row_count_hint": "~210 results -> 5 LoB cat risk charges",
+             "sql_snippet": "CREATE OR REFRESH MATERIALIZED VIEW cat_risk_by_lob AS\nSELECT\n  lob_code, lob_name,\n  SUM(var_net_eur)  AS var_net_eur,\n  SUM(tvar_net_eur) AS tvar_net_eur,\n  COUNT(DISTINCT peril) AS perils_modelled\nFROM LIVE.igloo_run_results\nWHERE return_period = 200  -- 1-in-200 VaR 99.5%\nGROUP BY lob_code, lob_name",
+             "expectations": [
+                 {"name": "var_net_positive", "rule": "var_net_eur > 0", "action": "DROP ROW"},
+                 {"name": "tvar_gte_var", "rule": "tvar_net_eur >= var_net_eur", "action": "DROP ROW"},
+             ]},
+            {"step": 6, "phase": "Transformation", "source": "volume_measures", "target": "premium_reserve_risk",
+             "layer": "Silver", "description": "Apply EIOPA Standard Formula sigma factors to compute premium and reserve risk charges. Premium risk sigma ranges from 6.5% (Medical) to 14% (General liability). Reserve risk sigma ranges from 9% to 19%. Risk charge = 3 x sigma x volume (VaR 99.5% approximation)",
+             "row_count_hint": "7 LoB -> 7 premium + 7 reserve risk charges",
+             "sql_snippet": "CREATE OR REFRESH MATERIALIZED VIEW premium_reserve_risk AS\nSELECT\n  lob_code, lob_name,\n  -- Volume measure\n  GREATEST(earned_premium_net,\n           written_premium_net_next_year)\n    + best_estimate_claims_provision\n    AS volume_measure_eur,\n  -- Premium risk = 3 * sigma_prem * volume\n  3.0 * sigma_premium * volume AS premium_risk_eur,\n  -- Reserve risk = 3 * sigma_res * BE_claims\n  3.0 * sigma_reserve * BE_claims AS reserve_risk_eur\nFROM LIVE.volume_measures",
+             "expectations": [
+                 {"name": "volume_positive", "rule": "volume_measure_eur > 0", "action": "DROP ROW"},
+                 {"name": "premium_risk_positive", "rule": "premium_risk_eur >= 0", "action": "DROP ROW"},
+                 {"name": "reserve_risk_positive", "rule": "reserve_risk_eur >= 0", "action": "DROP ROW"},
+             ]},
+            {"step": 7, "phase": "Confirmation", "source": "cat_risk_by_lob + premium_reserve_risk", "target": "s2606_nl_uw_risk",
+             "layer": "Gold", "description": "Merge catastrophe risk and premium/reserve risk into EIOPA S.26.06 template. Aggregate via correlation matrix (premium/reserve <-> cat correlation = 0.25). Template rows: R0010 (premium), R0020 (reserve), R0040 (cat), R0100 (diversified total), R0110 (diversification benefit)",
+             "row_count_hint": "7 template rows",
+             "sql_snippet": "-- Diversified NL UW SCR\nSQRT(\n  POWER(combined_prem_res_risk, 2) +\n  POWER(total_cat_risk, 2) +\n  2 * 0.25 * combined_prem_res_risk\n           * total_cat_risk\n) AS diversified_nl_uw_scr",
+             "expectations": [
+                 {"name": "row_id_present", "rule": "template_row_id IS NOT NULL", "action": "DROP ROW"},
+                 {"name": "amount_not_null", "rule": "amount_eur IS NOT NULL", "action": "DROP ROW"},
+             ]},
+            {"step": 8, "phase": "Confirmation", "source": "s2606_nl_uw_risk", "target": "s2606_summary",
+             "layer": "Gold", "description": "Summary view for actuarial sign-off showing premium risk, reserve risk, cat risk (VaR and TVaR), diversification benefit, and total NL UW SCR. Includes cat risk as percentage of total",
+             "row_count_hint": "1 summary row per quarter",
+             "sql_snippet": None,
+             "expectations": [
+                 {"name": "total_nl_uw_positive", "rule": "total_nl_uw_scr > 0", "action": "FAIL UPDATE"},
+             ]},
+            {"step": 9, "phase": "Export", "source": "s2606_summary", "target": "EIOPA S.26.06 Template",
+             "layer": "Export", "description": "Final NL underwriting risk template ready for actuarial sign-off and regulatory submission. Includes stochastic model audit trail (Igloo run ID, simulation count, file paths)",
+             "row_count_hint": "7 template rows + summary",
+             "sql_snippet": None, "expectations": []},
+        ],
+    },
 }
 
 
@@ -248,6 +312,20 @@ async def list_reports():
                     info["metric_label"] = "Solvency Ratio"
                     info["metric_value"] = f"{rows[0]['solvency_ratio_pct']}%"
                     info["scr"] = f"EUR {rows[0]['scr_meur']}M"
+
+            elif qrt_id == "s2606":
+                rows = await execute_query(f"""
+                    SELECT reporting_period,
+                           ROUND(total_nl_uw_scr/1e6, 1) AS nl_uw_meur,
+                           cat_pct_of_total
+                    FROM {fqn('s2606_summary')}
+                    ORDER BY reporting_period DESC LIMIT 1
+                """)
+                if rows:
+                    info["period"] = rows[0]["reporting_period"]
+                    info["row_count"] = "7 components"
+                    info["metric_label"] = "NL UW SCR"
+                    info["metric_value"] = f"EUR {rows[0]['nl_uw_meur']}M"
 
             # Get approval status for this QRT
             try:
@@ -399,6 +477,25 @@ async def get_quality(qrt_id: str, period: str = Query(None)):
                            "total": total, "failing": 0 if len(model_r) <= 1 else len(model_r) - 1,
                            "severity": "WARNING"})
 
+        elif qrt_id == "s2606":
+            summary = fqn("s2606_summary")
+            total_r = await execute_query(f"SELECT COUNT(*) AS c FROM {summary}")
+            total = int(total_r[0]["c"]) if total_r else 0
+
+            neg_scr = await execute_query(f"SELECT COUNT(*) AS c FROM {summary} WHERE total_nl_uw_scr <= 0")
+            checks.append({"check": "NL UW SCR positive", "constraint": "total_nl_uw_scr > 0",
+                           "total": total, "failing": int(neg_scr[0]["c"]) if neg_scr else 0, "severity": "FAIL UPDATE"})
+
+            # Cat risk should be less than total (diversification)
+            bad_cat = await execute_query(f"SELECT COUNT(*) AS c FROM {summary} WHERE cat_risk_var_eur > total_nl_uw_scr")
+            checks.append({"check": "Cat risk < total (diversification)", "constraint": "cat_risk_var < total_nl_uw_scr",
+                           "total": total, "failing": int(bad_cat[0]["c"]) if bad_cat else 0, "severity": "WARNING"})
+
+            # Premium risk positive
+            neg_prem = await execute_query(f"SELECT COUNT(*) AS c FROM {summary} WHERE premium_risk_eur <= 0")
+            checks.append({"check": "Premium risk positive", "constraint": "premium_risk_eur > 0",
+                           "total": total, "failing": int(neg_prem[0]["c"]) if neg_prem else 0, "severity": "FAIL UPDATE"})
+
         for c in checks:
             c["passing"] = c["total"] - c["failing"]
             c["status"] = "PASS" if c["failing"] == 0 else "FAIL"
@@ -516,6 +613,21 @@ async def get_template(qrt_id: str, period: str = Query(None)):
                     "format": "summary", "period": period,
                     "data": summary,
                     "totals": count[0] if count else None}
+
+        elif qrt_id == "s2606":
+            where = f"WHERE reporting_period = '{period}'" if period else f"WHERE reporting_period = {latest}"
+            breakdown = await execute_query(f"""
+                SELECT template_row_id, template_row_label,
+                       CAST(amount_eur AS DOUBLE) AS amount_eur
+                FROM {fqn('s2606_nl_uw_risk')} {where}
+                ORDER BY template_row_id
+            """)
+            summary = await execute_query(f"""
+                SELECT * FROM {fqn('s2606_summary')} {where}
+            """)
+            return {"qrt": "S.26.06", "title": "Non-Life Underwriting Risk",
+                    "format": "waterfall", "period": period,
+                    "data": breakdown, "summary": summary[0] if summary else None}
 
     except Exception as exc:
         logger.exception("Failed to get template for %s", qrt_id)
