@@ -509,6 +509,58 @@ s2501_layout = [
 ]
 
 
+# ── Page 5: Pipeline & DQ ─────────────────────────────────────────────
+
+ds_sla = ds("ds_sla", "SLA Status",
+    f"""SELECT feed_name, source_system, status, dq_pass_rate, row_count, notes FROM {FQN}.pipeline_sla_status WHERE reporting_period = (SELECT MAX(reporting_period) FROM {FQN}.pipeline_sla_status) ORDER BY feed_name""")
+
+ds_dq_trend = ds("ds_dq_trend", "DQ Pass Rate Trend",
+    f"""SELECT reporting_period, ROUND(SUM(passing_records) * 100.0 / SUM(total_records), 1) AS pass_rate, SUM(failing_records) AS quarantined FROM {FQN}.dq_expectation_results GROUP BY reporting_period ORDER BY reporting_period""")
+
+ds_dq_by_pipeline = ds("ds_dq_pipeline", "DQ by Pipeline",
+    f"""SELECT pipeline_name, SUM(total_records) AS total_records, SUM(failing_records) AS failing, ROUND(SUM(passing_records) * 100.0 / SUM(total_records), 1) AS pass_rate FROM {FQN}.dq_expectation_results WHERE reporting_period = (SELECT MAX(reporting_period) FROM {FQN}.dq_expectation_results) GROUP BY pipeline_name ORDER BY pipeline_name""")
+
+ds_recon = ds("ds_recon", "Reconciliation Checks",
+    f"""SELECT check_name, source_qrt, target_qrt, status, ROUND(source_value / 1e6, 1) AS source_m, ROUND(target_value / 1e6, 1) AS target_m, ROUND(difference / 1e6, 1) AS diff_m FROM {FQN}.cross_qrt_reconciliation WHERE reporting_period = (SELECT MAX(reporting_period) FROM {FQN}.cross_qrt_reconciliation) ORDER BY check_name""")
+
+pipeline_dq_layout = [
+    lay(md_widget("# Pipeline & Data Quality\nFeed arrival status, DLT expectation results, and cross-QRT reconciliation."),
+        pos(0, 0, 6, 1)),
+
+    # SLA status table
+    lay(table_widget(ds_sla,
+                     [("feed_name", "Feed"),
+                      ("source_system", "Source System"),
+                      ("status", "SLA Status"),
+                      ("row_count", "Rows", "number", "#,##0"),
+                      ("dq_pass_rate", "DQ Pass Rate", "number", "0.00%"),
+                      ("notes", "Notes")],
+                     "Data Feed SLA Status"),
+        pos(0, 1, 6, 4)),
+
+    # DQ trend
+    lay(bar_widget(ds_dq_trend, "reporting_period", "pass_rate",
+                   "DQ Pass Rate Trend (%)"),
+        pos(0, 5, 3, 4)),
+
+    # DQ by pipeline
+    lay(bar_widget(ds_dq_by_pipeline, "pipeline_name", "pass_rate",
+                   "Pass Rate by Pipeline (%)", label=True),
+        pos(3, 5, 3, 4)),
+
+    # Reconciliation
+    lay(table_widget(ds_recon,
+                     [("source_qrt", "Source QRT"),
+                      ("target_qrt", "Target"),
+                      ("source_m", "Source (EUR m)", "number", "#,##0.0"),
+                      ("target_m", "Target (EUR m)", "number", "#,##0.0"),
+                      ("diff_m", "Diff (EUR m)", "number", "#,##0.0"),
+                      ("status", "Status")],
+                     "Cross-QRT Reconciliation"),
+        pos(0, 9, 6, 4)),
+]
+
+
 # ── Assemble dashboard ───────────────────────────────────────────────
 
 serialized = {
@@ -522,6 +574,8 @@ serialized = {
          "pageType": "PAGE_TYPE_CANVAS", "layout": s0501_layout},
         {"name": uid(), "displayName": "S.25.01 — SCR",
          "pageType": "PAGE_TYPE_CANVAS", "layout": s2501_layout},
+        {"name": uid(), "displayName": "Pipeline & DQ",
+         "pageType": "PAGE_TYPE_CANVAS", "layout": pipeline_dq_layout},
     ],
     "uiSettings": {
         "theme": {"widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"},

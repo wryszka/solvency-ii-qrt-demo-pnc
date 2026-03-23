@@ -61,6 +61,10 @@ TABLE_COMMENTS = {
     "s2501_scr_breakdown": "EIOPA S.25.01 QRT — SCR breakdown with template row IDs (R0010-R0200) including market and NL sub-modules",
     "s2501_summary": "S.25.01 solvency summary — SCR, eligible own funds, solvency ratio, MCR ratio, and surplus per quarter",
     "qrt_approvals": "QRT approval workflow — submission and review status, reviewer comments, and Tagetik export paths",
+    "pipeline_sla_status": "Pipeline SLA tracking — feed arrival times vs deadlines for Control Tower monitoring",
+    "dq_expectation_results": "DQ expectation results — pass/fail rates from DLT pipeline expectations per table and quarter",
+    "cross_qrt_reconciliation": "Cross-QRT reconciliation checks — consistency validation between QRTs and source data",
+    "model_registry_log": "Model version usage log — Champion vs Challenger Standard Formula SCR results per quarter",
 }
 
 # ── Column descriptions ───────────────────────────────────────────────
