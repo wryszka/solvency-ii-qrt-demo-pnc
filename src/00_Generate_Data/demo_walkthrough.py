@@ -17,6 +17,101 @@
 # MAGIC | **Model Registry** | [standard_formula](https://fevm-lr-serverless-aws-us.cloud.databricks.com/explore/data/models/lr_serverless_aws_us_catalog/solvency2demo/standard_formula) |
 # MAGIC
 # MAGIC ---
+# MAGIC
+# MAGIC ## End-to-End Architecture
+# MAGIC
+# MAGIC ```
+# MAGIC ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+# MAGIC │                           BRICKSURANCE SE — Solvency II on Databricks                          │
+# MAGIC └──────────────────────────────────────────────────────────────────────────────────────────────────┘
+# MAGIC
+# MAGIC  SOURCE SYSTEMS                    DATABRICKS PLATFORM                           CONSUMERS
+# MAGIC ┌──────────────┐     ┌──────────────────────────────────────────────────────┐  ┌──────────────┐
+# MAGIC │              │     │                                                      │  │              │
+# MAGIC │  Simcorp     │────>│  BRONZE (15 tables)                                  │  │  Databricks  │
+# MAGIC │  (Investments)│     │  assets, premiums, claims, expenses,                 │  │  App         │
+# MAGIC │              │     │  risk_factors, own_funds, exposures,                  │  │  ┌────────┐  │
+# MAGIC ├──────────────┤     │  igloo_results, counterparties, ...                   │  │  │Monitor │  │
+# MAGIC │              │     │                                                      │  │  │Reports │  │
+# MAGIC │  Guidewire   │────>│         │              │              │               │  │  │DQ      │  │
+# MAGIC │  (Policies)  │     │         ▼              ▼              ▼               │  │  │Approve │  │
+# MAGIC │              │     │                                                      │  │  └────────┘  │
+# MAGIC ├──────────────┤     │  SILVER (DLT Pipelines + Expectations)               │  │              │
+# MAGIC │              │     │  ┌─────────────┐ ┌─────────────┐ ┌───────────────┐   │  ├──────────────┤
+# MAGIC │  SAP / ERP   │────>│  │ S.06.02     │ │ S.05.01     │ │ S.25.01       │   │  │              │
+# MAGIC │  (Finance)   │     │  │ assets_     │ │ premiums_   │ │ Standard      │   │  │  Lakeview    │
+# MAGIC │              │     │  │ enriched    │ │ by_lob      │ │ Formula Model │   │  │  Dashboard   │
+# MAGIC ├──────────────┤     │  │ (CIC, SII)  │ │ claims_     │ │ (MLflow UC)   │   │  │  (5 tabs)    │
+# MAGIC │              │     │  │             │ │ by_lob      │ │ Champion v1   │   │  │              │
+# MAGIC │  Igloo 5.2.1 │<──>│  │             │ │ expenses_   │ │ Challenger v2 │   │  ├──────────────┤
+# MAGIC │  (Cat Model) │     │  │             │ │ by_lob      │ │               │   │  │              │
+# MAGIC │  10K sims    │     │  └──────┬──────┘ └──────┬──────┘ └───────┬───────┘   │  │  Genie       │
+# MAGIC │              │     │         │              │              │               │  │  AI Q&A      │
+# MAGIC ├──────────────┤     │  ┌──────┴──────┐       │    ┌─────────┴─────────┐    │  │  (30 tables) │
+# MAGIC │              │     │  │ S.26.06     │       │    │                   │    │  │              │
+# MAGIC │  Risk Engine │────>│  │ cat_risk +  │       │    │                   │    │  ├──────────────┤
+# MAGIC │  (Igloo/RAFM)│     │  │ prem_res    │       │    │                   │    │  │              │
+# MAGIC │              │     │  │ risk        │       │    │                   │    │  │  BaFin       │
+# MAGIC └──────────────┘     │  └──────┬──────┘       │    │                   │    │  │  (Regulator) │
+# MAGIC                      │         │              │    │                   │    │  │              │
+# MAGIC                      │         ▼              ▼    ▼                   │    │  │  CSV + PDF   │
+# MAGIC                      │                                                │    │  │  XBRL        │
+# MAGIC                      │  GOLD (EIOPA Template Mapping)                 │    │  │              │
+# MAGIC                      │  ┌─────────────┐ ┌─────────────┐ ┌───────────┐│    │  └──────────────┘
+# MAGIC                      │  │ s0602_list  │ │ s0501_prem  │ │ s2501_scr ││    │
+# MAGIC                      │  │ _of_assets  │ │ _claims_exp │ │ _breakdown││    │
+# MAGIC                      │  │ (C0040-370) │ │ (R0110-1200)│ │(R0010-200)││    │
+# MAGIC                      │  └──────┬──────┘ └──────┬──────┘ └─────┬─────┘│    │
+# MAGIC                      │         │              │            │         │    │
+# MAGIC                      │  ┌──────┴──────┐ ┌─────┴───────┐ ┌─┴───────┐ │    │
+# MAGIC                      │  │ s2606_nl_uw │ │             │ │         │ │    │
+# MAGIC                      │  │ _risk       │ │             │ │         │ │    │
+# MAGIC                      │  │ (R0010-110) │ │             │ │         │ │    │
+# MAGIC                      │  └──────┬──────┘ │             │ │         │ │    │
+# MAGIC                      │         │        │             │ │         │ │    │
+# MAGIC                      │         ▼        ▼             ▼ ▼         │    │
+# MAGIC                      │                                                │    │
+# MAGIC                      │  SUMMARY (Actuarial Sign-off Views)            │    │
+# MAGIC                      │  s0602_summary  s0501_summary  s2501_summary   │    │
+# MAGIC                      │  s2606_summary  (ratios, totals, solvency)     │    │
+# MAGIC                      │                                                │    │
+# MAGIC                      │         │                                      │    │
+# MAGIC                      │         ▼                                      │    │
+# MAGIC                      │                                                │    │
+# MAGIC                      │  MONITORING & GOVERNANCE                       │    │
+# MAGIC                      │  ┌──────────────┐ ┌──────────────┐             │    │
+# MAGIC                      │  │ SLA Status   │ │ DQ Results   │             │    │
+# MAGIC                      │  │ (feed times) │ │ (expectations│             │    │
+# MAGIC                      │  ├──────────────┤ ├──────────────┤             │    │
+# MAGIC                      │  │ Cross-QRT    │ │ Model        │             │    │
+# MAGIC                      │  │ Reconciliatn │ │ Registry Log │             │    │
+# MAGIC                      │  └──────────────┘ └──────────────┘             │    │
+# MAGIC                      │                                                │    │
+# MAGIC                      │         │                                      │    │
+# MAGIC                      │         ▼                                      │    │
+# MAGIC                      │                                                │    │
+# MAGIC                      │  APPROVAL & EXPORT                             │    │
+# MAGIC                      │  ┌─────────────────────────────────────────┐   │    │
+# MAGIC                      │  │ Submit → Review → Approve → Export      │   │    │
+# MAGIC                      │  │                                         │   │    │
+# MAGIC                      │  │ qrt_approvals table (audit trail)       │   │    │
+# MAGIC                      │  │ regulatory_exports/ Volume (CSV + PDF)  │   │    │
+# MAGIC                      │  │ Approval certificate (SHA-256 hash)     │   │    │
+# MAGIC                      │  └─────────────────────────────────────────┘   │    │
+# MAGIC                      │                                                │    │
+# MAGIC                      └────────────────────────────────────────────────────┘
+# MAGIC ```
+# MAGIC
+# MAGIC ### Four QRT Pipelines
+# MAGIC
+# MAGIC | QRT | Pipeline | Key Feature | Tables |
+# MAGIC |-----|----------|-------------|--------|
+# MAGIC | **S.06.02** | assets → enriched → EIOPA template | CIC decomposition, SII valuation | 5K assets |
+# MAGIC | **S.05.01** | 3 parallel streams → merge → ratios | Fan-in from premiums + claims + expenses | 144 template rows |
+# MAGIC | **S.25.01** | risk_factors → MLflow model → template | Standard Formula from Unity Catalog | 17 SCR components |
+# MAGIC | **S.26.06** | exposures → Igloo → cat + prem/res risk | Stochastic model with Volume CSV exchange | 10K simulations |
+# MAGIC
+# MAGIC ---
 
 # COMMAND ----------
 
