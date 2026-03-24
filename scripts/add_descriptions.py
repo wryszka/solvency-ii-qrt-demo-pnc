@@ -7,7 +7,7 @@ import sys
 
 CATALOG = "lr_serverless_aws_us_catalog"
 SCHEMA = "solvency2demo"
-WAREHOUSE_ID = "c80acfa212bf1166"
+WAREHOUSE_ID = "ab79eced8207d29b"
 PROFILE = "DEFAULT"
 FQN = f"{CATALOG}.{SCHEMA}"
 

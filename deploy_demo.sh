@@ -24,7 +24,7 @@ SCHEMA="solvency2demo"
 WORKSPACE_DIR=""
 YEAR="2025"
 ENTITY="Bricksurance SE"
-WAREHOUSE_ID="c80acfa212bf1166"
+WAREHOUSE_ID="ab79eced8207d29b"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do

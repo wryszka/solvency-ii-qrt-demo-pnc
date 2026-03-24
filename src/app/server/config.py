@@ -31,7 +31,7 @@ def get_schema() -> str:
 
 
 def get_warehouse_id() -> str:
-    return os.getenv("WAREHOUSE_ID", "c80acfa212bf1166")
+    return os.getenv("WAREHOUSE_ID", "ab79eced8207d29b")
 
 
 def fqn(table: str) -> str:

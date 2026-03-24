@@ -5,7 +5,7 @@ env:
   - name: SCHEMA_NAME
     value: "solvency2demo"
   - name: WAREHOUSE_ID
-    value: "c80acfa212bf1166"
+    value: "ab79eced8207d29b"
   - name: DASHBOARD_ID
     value: "01f1270282cd14fe8c155d26361eec82"
   - name: GENIE_SPACE_ID
