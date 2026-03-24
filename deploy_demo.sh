@@ -99,6 +99,8 @@ upload_notebook "$SRC_DIR/00_Generate_Data/teardown.py" \
     "$WORKSPACE_DIR/00_Generate_Data/teardown"
 upload_notebook "$SRC_DIR/00_Generate_Data/full_teardown.py" \
     "$WORKSPACE_DIR/00_Generate_Data/full_teardown"
+upload_notebook "$SRC_DIR/00_Generate_Data/demo_walkthrough.py" \
+    "$WORKSPACE_DIR/00_Generate_Data/demo_walkthrough"
 
 # QRT notebooks
 for dir in 01_QRT_S0602_Assets 02_QRT_S0501_PnL 03_QRT_S2501_SCR 04_QRT_S2606_NL_Risk; do
